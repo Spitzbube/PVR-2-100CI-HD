@@ -52,6 +52,7 @@ endif
   DIRECTORIES += audio
   DIRECTORIES += paint
   DIRECTORIES += compression
+  DIRECTORIES += bus
 
 ################################################################################
 # include library specific targets ( if available )

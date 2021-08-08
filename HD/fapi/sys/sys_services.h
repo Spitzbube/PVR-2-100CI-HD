@@ -60,7 +60,24 @@ extern int FAPI_SYS_IsMasterCpu(void);
             }                                              \
         }
 
- 
+
+#define FAPI_SYS_LOCK_SCHEDULER                               \
+        {                                                     \
+            if( FAPI_SYS_Services.lockSchedulerFunc != NULL ) \
+            {                                                 \
+                FAPI_SYS_Services.lockSchedulerFunc();        \
+            }                                                 \
+        }
+
+#define FAPI_SYS_UNLOCK_SCHEDULER                               \
+        {                                                       \
+            if( FAPI_SYS_Services.unlockSchedulerFunc != NULL ) \
+            {                                                   \
+                FAPI_SYS_Services.unlockSchedulerFunc();        \
+            }                                                   \
+        }
+
+
 #define DI(cpu_sr) \
    cpu_sr = (FAPI_SYS_Services.disableIrq != 0)?\
       (FAPI_SYS_Services.disableIrq)(): 0;\

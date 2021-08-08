@@ -28,9 +28,12 @@ include $(TOPDIR)/env/make/Makefile.config
 
 SOURCES         += src/fatfs.c
 SOURCES         += src/api_f.c
+SOURCES         += src/usbdrv.c
+
 HEADERS         += src/fatfs.h 
 HEADERS         += src/api_f.h
 HEADERS         += src/fwerr.h
+HEADERS         += src/usbdrv.h
   
 LIBRARY          = libfatfs
 HEADER_SUBDIR    = fatfs
