@@ -571,6 +571,8 @@ typedef enum
 
 } SYS_SPDIF_MODE_E;
 
+#endif
+
 /*!
 *******************************************************************************
 **
@@ -602,6 +604,8 @@ typedef enum
     SYS_DEV_PWRMODE_NUMS
 
 } SYS_DEV_PWRMODE_E;
+
+#if 0
 
 /*!
 *******************************************************************************
@@ -690,7 +694,6 @@ extern "C"
 {
 #endif
 
-#if 0
 
 /*----------------------------------------------------------------------------*/
 /* Event handling                                                             */
@@ -718,10 +721,10 @@ enum
     EVT_SDT_RECEIVED,         //!< A SDT has been received (live-TV only).
     EVT_NIT_RECEIVED,         //!< A NIT has been received (live-TV only).
     EVT_CAT_RECEIVED,         //!< A CAT has been received.
-    EVT_TIME_UPDATE,          //!< 10 New time and date is sent.
-    EVT_TIMEZONE_CHANGE,      //!< Timezone has changed (triggered by TOT).
+    EVT_TIME_UPDATE/*10*/,          //!< 10 New time and date is sent.
+    EVT_TIMEZONE_CHANGE/*11*/,      //!< Timezone has changed (triggered by TOT).
     EVT_TIMESYNC_TIMEOUT,     //!< Requests the timer Menu to set Time manually
-    EVT_TIMER_EXPIRED,        //!< User timer has expired.
+    EVT_TIMER_EXPIRED/*15*/,        //!< User timer has expired.
     EVT_SCAN_SERVICE_ADDED,   //!< A service has been found during scan.
     EVT_SCAN_CARRIER_ADDED,   //!< A carrier has been found and added to a list.
     EVT_SCAN_PROGRESS,        //!< Actual scanning progress is reported.
@@ -780,7 +783,7 @@ enum
     EVT_PCTRL_NOMOREAUTH,     //!< Parental control authorization not needed
                               //!< (anymore).
 
-    EVT_USB_CONNECT_STATUS,   //!< Connection status of a usb device has
+    EVT_USB_CONNECT_STATUS = 59,   //!< Connection status of a usb device has
                               //!< changed.
 
     EVT_DEV_FORMAT_FINISH,    //!< Notify the application that the format
@@ -798,10 +801,12 @@ enum
 
 typedef struct
 {
-    SYS_EVTTYPE_E       type;
-    uint16_t            length;
-
+    SYS_EVTTYPE_E       type; //0
+    uint16_t            length; //4
+    //8
 } SYS_EVTHDR_S;
+
+#if 0
 
 typedef struct              /* Event: service selected/added */
 {
@@ -3749,6 +3754,8 @@ int32_t             CONAX_CA_MmiGetAvailability(uint8_t slotIdx,
 
 #endif /* APPL_CA_ENABLED */
 
+#endif
+
 /*---------------------------------------------------------------------------*/
 /* System startup                                                            */
 /*---------------------------------------------------------------------------*/
@@ -3756,6 +3763,8 @@ int32_t             CONAX_CA_MmiGetAvailability(uint8_t slotIdx,
 #define SYS_DEV_SERIALNUM_LEN    21
 #define SYS_DEV_FIRMWARE_LEN      9
 #define SYS_DEV_MODEL_LEN        41
+
+#if 0
 
 /*!
 *******************************************************************************
@@ -4413,18 +4422,20 @@ int32_t             HDD_GetSpindownTime(uint32_t* timeInSeconds);
 
 #endif /* APPL_HDD_ENABLED */
 
+#endif
+
 /*---------------------------------------------------------------------------*/
 /* USB utility functions                                                     */
 /*---------------------------------------------------------------------------*/
 
-#ifdef APPL_USB_ENABLED
+#if 1//def APPL_USB_ENABLED
 
 typedef enum
 {
     USB_MSC_ACCESS_UNKNOWN = 0,     //!< Access rights not yet evaluated.
-    USB_MSC_ACCESS_DENIED,          //!< Access has been denied, HDD currently
+    USB_MSC_ACCESS_DENIED, /*1*/         //!< Access has been denied, HDD currently
                                     //!< in use.
-    USB_MSC_ACCESS_GRANTED          //!< Access has been granted, HDD will
+    USB_MSC_ACCESS_GRANTED /*2*/         //!< Access has been granted, HDD will
                                     //!< be locked for internal usage.
 
 } USB_MSC_ACCESS_STATUS;
@@ -4434,7 +4445,7 @@ typedef enum
 {
     USB_DEVTYPE_NONE = -1,                //!< Unknown device type.
     USB_DEVTYPE_HOST = 0,                 //!< Host device (e.g. PC).
-    USB_DEVTYPE_FUNCTION                  //!< Function device (e.g. memory
+    USB_DEVTYPE_FUNCTION /*1*/                 //!< Function device (e.g. memory
                                           //!< stick).
 } USB_DEVICE_TYPE_E;
 
@@ -4455,10 +4466,15 @@ typedef struct              /* Event: USB function mode: connection status */
 
 } SYS_EVT_USB_CONNECT_S;
 
+#if 0
+
 int32_t             USB_GetConnectionStatus (USB_CONNECT_STATUS_S* pStatus);
+
+#endif
 
 #endif /* APPL_USB_ENABLED */
 
+#if 0
 
 #ifdef APPL_FILEOP_ENABLED
 

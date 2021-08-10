@@ -3,8 +3,6 @@
 **
 ** \file        ./subsystems/paint/freetype2/src/fontnotify.c
 ** 
-** \version     $Id: fontnotify.c,v 1.1 2010/09/13 20:44:53 gdrguy69 Exp $
-**
 ** \brief       FONT Driver FreeType notification mechanism
 **
 ** This file contains the implementation of the FONT driver FreeType

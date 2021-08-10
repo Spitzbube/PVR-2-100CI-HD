@@ -12,15 +12,6 @@ struct Struct_49d604;
 struct Struct_49d2fc_Inner1_3_2_t;
 
 
-struct MUSB_DeviceDriverCandidate
-{
-   MUSB_DeviceDriver deviceDriver; //0
-   char peripheralList[52]; //28
-   unsigned listLength; //80
-   struct MUSB_DeviceDriverCandidate* next; //84
-};
-
-
 typedef struct Struct_49d2fc_Inner1_3_2_t
 {
    MUSB_DeviceDriver* pDeviceDriver; //0
@@ -286,15 +277,15 @@ typedef struct
 
 
 extern int func_21cc5594(int);
-extern void* func_21cc4eac(MUSB_SystemUtils*, unsigned short, int, int);
-extern MUSB_Port* func_21cc4dc8(unsigned short);
-extern int func_21cc41c4(MUSB_Controller*, MUSB_SystemServices*);
+extern void* MUSB_NewController(MUSB_SystemUtils*, unsigned short, int, int);
+extern MUSB_Port* MUSB_GetPort(unsigned short);
+extern int MUSB_StartController(MUSB_Controller*, MUSB_SystemServices*);
 extern int MGC_HdrcUlpiVbusControl(struct MGC*, char, char);
-extern MUSB_BusHandle func_21cc6c24(MUSB_Port*, MUSB_FunctionClient*, MUSB_HostClient*, MUSB_OtgClient*);
+extern MUSB_BusHandle MUSB_RegisterOtgClient(MUSB_Port*, MUSB_FunctionClient*, MUSB_HostClient*, MUSB_OtgClient*);
 extern void func_21cc8328(char*);
 extern void func_21cc3b54(char*, unsigned short, const char*);
 extern void func_21cc3e28(char*, unsigned short, unsigned, unsigned char, unsigned);
-extern int MGC_SetDmaControllerFactory(int);
+extern int MUSB_FAPI_InitDma(int);
 
 extern void musb_memcpy(void*, void*, int);
 

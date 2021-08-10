@@ -4,8 +4,8 @@
 #include "mu_hfi.h"
 
 
-extern int usb_storage_get_filter(uint8_t*, unsigned short);
-extern void* usb_storage_get_driver(void);
+extern int MGC_FillStorageClassPeripheralList(uint8_t*, unsigned short);
+extern void* MUSB_GetStorageClassDriver(void);
 
 
 

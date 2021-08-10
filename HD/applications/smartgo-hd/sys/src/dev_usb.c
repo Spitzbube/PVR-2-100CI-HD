@@ -11,6 +11,8 @@
 #include "rtos.h"
 #endif
 #include "sys.h"
+#include "sys_api.h"
+#include "sys_priv.h"
 #include "device.h"
 #if 0
 #include "fapi_adapter.h"
@@ -31,22 +33,26 @@
 
 
 
-struct Struct_21bc3690
+typedef struct
 {
    FAPI_SYS_HandleT usbHandle; //0
-   F_DRIVER* Data_4; //4
-   int Data_8; //8
+   F_DRIVER* usbFsHandle; //4
+   int running; //8
+#if 1
+   USB_CONNECT_STATUS_S  currStatus;     //!< Current status.
+#else
    int Data_12; //12
    int Data_16; //16
    int Data_20; //20
+#endif
    FAPI_SYS_HandleT ataHandle; //24
    uint32_t connectFlag; //28
    int mscLocked; //32
    //36
-};
+} USB_DATA_S;
 
 
-struct Struct_21bc3690* Data_21f0b048; //21f0b048
+static USB_DATA_S* usbDat = NULL; //21f0b048
 int Data_21f0b04c; //21f0b04c
 int Data_21f0b050; //21f0b050
 
@@ -54,27 +60,27 @@ char Data_21f7e12c[512]; //21f7e12c
 
 
 
-void dev_usb_volume_notify(FAPI_USB_VolumeInfoT* infoPtr, uint32_t insertFlag);
-void func_21bc374c(void);
-void func_21bc3678(void);
-int32_t dev_usb_init_msc_function_client(struct Struct_21bc3690*);
-int dev_usb_start_driver(struct Struct_21bc3690*);
+void USB_MediaNotify(FAPI_USB_VolumeInfoT* infoPtr, uint32_t insertFlag);
+void USB_Wakeup(void);
+void USB_Shutdown(void);
+int32_t dev_usb_init_msc_function_client(USB_DATA_S*);
+int USB_Start(USB_DATA_S*);
 
 
 
 /* 21bc3aa4 - complete */
 int32_t dev_usb_init(void)
 {
-   struct deviceParams sp20;
+   /*struct deviceParams*/SYS_DEV_CFG_S devCfg;
    FAPI_USB_OpenParamsT usbParams;
    FAPI_USB_VolumeOpenParamsT volumeParams;
-   struct Struct_21b8818c sp56;
+   struct Struct_21b8818c hddStatus; //sp56;
    
    int32_t errorCode = 0;
    
    SYS_PrintString("Initializing USB...");
    
-   if (Data_21f0b048 != 0)
+   if (usbDat != 0)
    {
       FAPI_SYS_PRINT_MSG("ASSERTION FAILED at %s, l.%i\n",
             "sys/src/dev_usb.c", 137);
@@ -83,15 +89,15 @@ int32_t dev_usb_init(void)
 
    do
    {
-      Data_21f0b048 = SYS_MemoryAllocate(sizeof(struct Struct_21bc3690));
+      usbDat = SYS_MemoryAllocate(sizeof(USB_DATA_S));
       
-      if (Data_21f0b048 == 0)
+      if (usbDat == 0)
       {
          errorCode = -10000002;
          break;
       }
 
-      memset(Data_21f0b048, 0, sizeof(struct Struct_21bc3690));
+      memset(usbDat, 0, sizeof(USB_DATA_S));
 
       memset(&usbParams.desireHostRoleFlag, 0, 4);
 
@@ -101,9 +107,9 @@ int32_t dev_usb_init(void)
       usbParams.otgStateNotifyFct = 0;
       usbParams.otgErrorNotifyFct = 0;
 
-      Data_21f0b048->usbHandle = FAPI_USB_Open(&usbParams, &errorCode);
+      usbDat->usbHandle = FAPI_USB_Open(&usbParams, &errorCode);
 
-      if (Data_21f0b048->usbHandle == 0)
+      if (usbDat->usbHandle == 0)
       {
          break;
       }
@@ -113,7 +119,7 @@ int32_t dev_usb_init(void)
       volumeParams.useDMA = 1;
       volumeParams.useRTOS = 1;
 
-      errorCode = f_createdriver(&Data_21f0b048->Data_4,
+      errorCode = f_createdriver(&usbDat->usbFsHandle,
             USBDRV_Init, (unsigned long)&volumeParams);
 
       if (errorCode != 0)
@@ -122,37 +128,44 @@ int32_t dev_usb_init(void)
          break;
       }
 
-      memset(&sp20, 0, sizeof(sp20));
+      memset(&devCfg, 0, sizeof(devCfg));
 
-      sp20.Data_0 = "USB";
-      sp20.Data_4 = func_21bc374c;
-      sp20.Data_8 = func_21bc3678;
-      //sp20.Data_12 = 0;
-      //sp20.Data_16 = 0;
+      devCfg.devName = "USB";
+      devCfg.wakeup = USB_Wakeup;
+      devCfg.shutdown = USB_Shutdown;
+      //devCfg.Data_12 = 0;
+      //devCfg.Data_16 = 0;
 
-      errorCode = device_add(1, &sp20);
+      errorCode = device_add(1, &devCfg);
 
       if (errorCode != 0)
       {
          break;
       }
 
-      Data_21f0b048->Data_12 = 0;
-      Data_21f0b048->Data_16 = -1;
-      Data_21f0b048->Data_20 = 0;
-      Data_21f0b048->ataHandle = NULL;
-      Data_21f0b048->connectFlag = 0;
-      Data_21f0b048->mscLocked = 0;
+      usbDat->currStatus.connected = 0;
+      usbDat->currStatus.devType = -1;
+      usbDat->currStatus.accessStatus = 0;
 
-      if (0 != func_21b8818c(0, &sp56))
+#if 1//def APPL_USB_FUNC_MSC_ENABLED
+
+      usbDat->ataHandle = NULL;
+      usbDat->connectFlag = 0;
+      usbDat->mscLocked = 0;
+
+      /* Setup USB function mode if HDD device is available */
+      if (0 != func_21b8818c(0, &hddStatus))
       {
          break;
       }
 
-      if (sp56.Data_0 != 0)
+      if (hddStatus.Data_0 != 0)
       {
-         errorCode = dev_usb_init_msc_function_client(Data_21f0b048);
+         errorCode = dev_usb_init_msc_function_client(usbDat);
       }
+
+#endif /* APPL_USB_FUNC_MSC_ENABLED */
+
    }
    while (0);
 
@@ -161,48 +174,56 @@ int32_t dev_usb_init(void)
 
 
 /* 21bc382c - todo */
-void func_21bc382c(void* a)
+void USB_ConnectStatusHandling(void* a)
 {
-//   printf("func_21bc382c\n");
-   
-   struct Event_59* r5 = a;
-   
-   if (Data_21f0b048 != 0)
+    SYS_DEVICE_PARAMS_S devParams; //sp;
+
+    FAPI_USB_VolumeInfoT* pInfoUSB;
+
+    SYS_EVT_USB_CONNECT_S ctrlEvent; //sp80;
+
+    SYS_EVT_USB_CONNECT_S* pEvent = a;
+
+   //   printf("USB_ConnectStatusHandling\n");
+
+   if (usbDat == 0)
    {
-      //21bc384c
-      if (r5->Data_12 == 0)
-      {
-         //21bc3858
-         if (r5->insertFlag != 0)
-         {
+       return;
+   }
+
+    //21bc384c
+    switch (pEvent->status.devType)
+    {
+    case 0: //USB_DEVTYPE_HOST
+        //21bc3858
+        if (pEvent->status.connected != 0)
+        {
             //21bc3864
-            if ((Data_21f0b048->Data_12 != 0) && 
-                  (Data_21f0b048->Data_16 == 1))
+            if ((usbDat->currStatus.connected != 0) &&
+                  (usbDat->currStatus.devType == USB_DEVTYPE_FUNCTION/*1*/))
             {
                //21bc3a5c
-               func_21b88d20(1, 0, 0, 0);
+               SYS_DeviceSetAvailability(1, 0, 0, 0);
             }
             //21bc387c
-            if (r5->Data_16 == 0)
+            if (pEvent->status.accessStatus == 0)
             {
                //21bc3888
-               struct Event_59 sp80;
-               
-               sp80.header.tag = 59;
-               sp80.header.size = sizeof(struct Event_59);
-               sp80.insertFlag = 1;
-               sp80.Data_12 = 0;
-               sp80.Data_16 = 1;
-                              
-               if (0 == func_21b88b2c(0, 1))
+               ctrlEvent.hdr.type = EVT_USB_CONNECT_STATUS; //59;
+               ctrlEvent.hdr.length = sizeof(ctrlEvent);
+               ctrlEvent.status.connected = 1;
+               ctrlEvent.status.devType = USB_DEVTYPE_HOST; //0;
+               ctrlEvent.status.accessStatus = USB_MSC_ACCESS_DENIED; //1;
+
+               if (0 == SYS_DeviceSetExternalAccess(0, 1))
                {
                   //21bc38bc
-                  if (Data_21f0b048->mscLocked != 0)
+                  if (usbDat->mscLocked != 0)
                   {
                      //21bc3a6c
                      FAPI_USB_FUNC_MSC_Unlock();
-                     
-                     Data_21f0b048->mscLocked = 0;
+
+                     usbDat->mscLocked = 0;
                   }
                   else
                   {
@@ -210,99 +231,94 @@ void func_21bc382c(void* a)
                      FAPI_SYS_PRINT_MSG("[USB] USB-MSC: access granted but was not locked!\n");
                   }
                   //21bc38e4
-                  sp80.Data_16 = 2;
+                  ctrlEvent.status.accessStatus = USB_MSC_ACCESS_GRANTED; //2;
                }
                //21bc38ec
-               EVT_Send(&sp80, "USB MSC");
+               EVT_Send(&ctrlEvent, "USB MSC");
             }
             //->21bc3904
-         } //if (r5->Data_8 != 0)
-         else
-         {
+        } //if (pEvent->Data_8 != 0)
+        else
+        {
             //21bc3a4c
-            func_21b88b2c(0, 0);
+            SYS_DeviceSetExternalAccess(0, 0);
             //->21bc3904
-         }
-      } //if (r5->Data_12 == 0)
-      //21bc38fc
-      else if (r5->Data_12 == 1)
-      {
-         //21bc3920
-         if (r5->insertFlag != 0)
-         {
+        }
+        break;
+
+    case 1: //USB_DEVTYPE_FUNCTION
+        //21bc3920
+        if (pEvent->status.connected != 0)
+        {
             //21bc392c
-            FAPI_USB_VolumeInfoT* sl;
-            
-            sl = FAPI_USB_GetVolumeInfo(Data_21f0b048->Data_4->user_ptr);
-            
-            if (sl != 0)
+            pInfoUSB = FAPI_USB_GetVolumeInfo(usbDat->usbFsHandle->user_ptr);
+
+            if (pInfoUSB != 0)
             {
                //21bc3940
                func_21ba53c0(0xd980, 1);
-               
-               (Data_21f0b048->Data_4->readsector)(Data_21f0b048->Data_4,
+
+               (usbDat->usbFsHandle->readsector)(usbDat->usbFsHandle,
                      Data_21f7e12c, 0);
-               
-               unsigned r2 = (Data_21f7e12c[457] << 24) |                  
-                  (Data_21f7e12c[456] << 16) | 
-                  (Data_21f7e12c[455] << 8) | 
+
+               unsigned r2 = (Data_21f7e12c[455] << 8) |
+                  (Data_21f7e12c[456] << 16) |
+                  (Data_21f7e12c[457] << 24) |
                   Data_21f7e12c[454];
-               
-               (Data_21f0b048->Data_4->readsector)(Data_21f0b048->Data_4,
+
+               (usbDat->usbFsHandle->readsector)(usbDat->usbFsHandle,
                      Data_21f7e12c, r2);
-               
+
                Data_21f0b04c = Data_21f7e12c[13];
-               Data_21f0b050 = (Data_21f7e12c[12] << 8) | Data_21f7e12c[11];
-               
+               Data_21f0b050 = (Data_21f7e12c[12] << 8) + Data_21f7e12c[11];
+
                FAPI_SYS_PRINT_MSG("\n SectorPerCluster_usb = %d / %d ",
-                     Data_21f0b04c, 
+                     Data_21f0b04c,
                      Data_21f0b050);
                //21bc39e8
-               
-               struct 
-               {
-                  uint32_t Data_0; //0
-                  uint32_t Data_4; //4
-                  char Data_8[72]; //8
-                  //80
-               } sp;
-               
-               memset(&sp, 0, sizeof(sp));
-               
-               sp.Data_0 = sl->sectorCount;
-               sp.Data_4 = sl->sectorSize;
-               
-               SYS_StrNCpy(sp.Data_8, (char*) sl->serialNumber, 21);
-               
-               func_21b88d20(1, 1, Data_21f0b048->Data_4, &sp);
+               memset(&devParams, 0, sizeof(devParams));
+
+               devParams.sectorCount = pInfoUSB->sectorCount;
+               devParams.sectorSize = pInfoUSB->sectorSize;
+
+               SYS_StrNCpy(devParams.serialNumber,
+                       (char*) pInfoUSB->serialNumber,
+                       SYS_DEV_SERIALNUM_LEN/*21*/);
+
+               SYS_DeviceSetAvailability(1, 1, usbDat->usbFsHandle, &devParams);
             } //if (sl != 0)
             //21bc3904
-         } //if (r5->Data_8 != 0)
-         else
-         {
+        } //if (pEvent->Data_8 != 0)
+        else
+        {
             //21bc3a38
-            func_21b88d20(1, 0, 0, 0);
+            SYS_DeviceSetAvailability(1, 0, 0, 0);
             //->21bc3904
-         }
-      }
-      //21bc3904
-      memcpy(&Data_21f0b048->Data_12, &r5->insertFlag, 12);
-   }
-   //21bc3918
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    //21bc3904
+    memcpy(&usbDat->currStatus, &pEvent->status, 12);
 }
 
 
 /* 21bc374c - complete */
-void func_21bc374c(void)
+void USB_Wakeup(void)
 {
-   dev_usb_start_driver(Data_21f0b048);
+//    FAPI_SYS_PRINT_DEBUG(4,"[USB] Wakeup...\n");
+
+   USB_Start(usbDat);
    
-   Data_21f0b048->Data_8 = 1;
+   usbDat->running = 1;
 }
 
 
 /* 21bc3690 - complete */
-int dev_usb_start_driver(struct Struct_21bc3690* a)
+int USB_Start(USB_DATA_S* a)
 {
    int res;
    uint8_t peripheralList[50];
@@ -312,23 +328,23 @@ int dev_usb_start_driver(struct Struct_21bc3690* a)
       return 0xff676596;
    }
 
-   int numBytes = usb_storage_get_filter(peripheralList, sizeof(peripheralList));
+   int numBytes = MGC_FillStorageClassPeripheralList(peripheralList, sizeof(peripheralList));
       
    res = FAPI_USB_RegHostDriver(a->usbHandle,
-         usb_storage_get_driver(), peripheralList, numBytes);
+         MUSB_GetStorageClassDriver(), peripheralList, numBytes);
 
 #if 0
-   FAPI_SYS_PRINT_MSG("dev_usb_start_driver(1): res = %d\n", res);
+   FAPI_SYS_PRINT_MSG("USB_Start(1): res = %d\n", res);
 #endif
    
-   FAPI_USB_SetVolumeNotifyFct(dev_usb_volume_notify);
+   FAPI_USB_SetVolumeNotifyFct(USB_MediaNotify);
    
    if (res == 0)
    {
       res = FAPI_USB_Start(a->usbHandle);
       
 #if 0
-      FAPI_SYS_PRINT_MSG("dev_usb_start_driver(2): res = %d\n", res);
+      FAPI_SYS_PRINT_MSG("USB_Start(2): res = %d\n", res);
 #endif
       
       if ((res != 0) && (res != 0xffff9621))
@@ -342,9 +358,15 @@ int dev_usb_start_driver(struct Struct_21bc3690* a)
 
 
 /* 21bc3678 - todo */
-void func_21bc3678(void)
+void USB_Shutdown(void)
 {
-   
+    usbDat->running = 0;
+
+//    FAPI_SYS_PRINT_DEBUG(4,"[USB] Shutdown...\n");
+
+#if 0 //TODO
+    (void)USB_Stop(usbDat); //21bc364c
+#endif
 }
 
 
@@ -355,17 +377,17 @@ void dev_usb_msc_notify(uint32_t connectFlag)
 
    if (connectFlag != 0) connectFlag = 1;
 
-   if (Data_21f0b048->connectFlag != connectFlag)
+   if (usbDat->connectFlag != connectFlag)
    {
-      Data_21f0b048->connectFlag = connectFlag;
+      usbDat->connectFlag = connectFlag;
 
       if (connectFlag == 0)
       {
-         if (Data_21f0b048->mscLocked == 0)
+         if (usbDat->mscLocked == 0)
          {
             if (FAPI_USB_FUNC_MSC_Lock())
             {
-               Data_21f0b048->mscLocked = 1;
+               usbDat->mscLocked = 1;
             }
             else
             {
@@ -374,11 +396,11 @@ void dev_usb_msc_notify(uint32_t connectFlag)
          }
       }
 
-      sp.header.tag = 59;
+      sp.header.tag = EVT_USB_CONNECT_STATUS; //59;
       sp.header.size = 20;
-      sp.insertFlag = connectFlag;
-      sp.Data_12 = 0;
-      sp.Data_16 = 0;
+      sp.status.connected = connectFlag;
+      sp.status.devType = 0;
+      sp.status.accessStatus = 0;
 
       EVT_Send(&sp, "USB MSC");
    }
@@ -386,7 +408,7 @@ void dev_usb_msc_notify(uint32_t connectFlag)
 
 
 /* 21bc34a0 - complete */
-int32_t dev_usb_init_msc_function_client(struct Struct_21bc3690* a)
+int32_t dev_usb_init_msc_function_client(USB_DATA_S* a)
 {
    int32_t errorCode;
    FAPI_USB_FUNC_MSC_InitParamsT mscInitParams;
@@ -475,7 +497,7 @@ int32_t dev_usb_init_msc_function_client(struct Struct_21bc3690* a)
          break;
       }
 
-      Data_21f0b048->mscLocked = 1;
+      usbDat->mscLocked = 1;
 
       FAPI_USB_FUNC_MSC_SetHostNotifyFct(dev_usb_msc_notify);
    }
@@ -496,19 +518,19 @@ int32_t dev_usb_init_msc_function_client(struct Struct_21bc3690* a)
 
 
 /* 21bc345c - complete */
-void dev_usb_volume_notify(FAPI_USB_VolumeInfoT* infoPtr, uint32_t insertFlag)
+void USB_MediaNotify(FAPI_USB_VolumeInfoT* infoPtr, uint32_t insertFlag)
 {
-//   FAPI_SYS_PRINT_MSG("dev_usb_volume_notify\n");
+//   FAPI_SYS_PRINT_MSG("USB_MediaNotify\n");
    
-   struct Event_59 sp;
+   struct Event_59 ctrlEvent;
    
-   sp.header.tag = 59;
-   sp.header.size = sizeof(struct Event_59);
-   sp.insertFlag = insertFlag;
-   sp.Data_12 = 1;
-   sp.Data_16 = 0;
+   ctrlEvent.header.tag = EVT_USB_CONNECT_STATUS; //59;
+   ctrlEvent.header.size = sizeof(struct Event_59);
+   ctrlEvent.status.connected = insertFlag;
+   ctrlEvent.status.devType = 1;
+   ctrlEvent.status.accessStatus = 0;
    
-   EVT_Send(&sp, "USB");
+   EVT_Send(&ctrlEvent, "USB");
 }
 
 

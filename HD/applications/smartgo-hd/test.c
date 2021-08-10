@@ -620,12 +620,6 @@ void ft_strncmp()
 }
 
 
-/* 21b88b2c - todo */
-void func_21b88b2c(int a, int b)
-{
-   FAPI_SYS_PRINT_MSG("21b88b2c\n");
-}
-
 #endif
 
 

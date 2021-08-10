@@ -29,8 +29,12 @@ include $(TOPDIR)/env/make/Makefile.config
 
   SOURCES += drv/boot/drv_boot.c
   SOURCES += drv/clkpwr/drv_clkpwr.c
+  SOURCES += drv/ata/drv_ata.c
   SOURCES += drv/bm/drv_bm.c
   SOURCES += drv/bm/fapi_bm.c   #obsolete
+  SOURCES += drv/dma/drv_dma.c
+  SOURCES += drv/dma/drv_dma_sr.c
+  SOURCES += drv/dma/drv_dma_ccir656.c
   SOURCES += drv/flash/drv_flash.c
   SOURCES += drv/flash/drv_sflash.c
   SOURCES += drv/flash/drv_sflash_devices.c
@@ -49,6 +53,9 @@ include $(TOPDIR)/env/make/Makefile.config
   SOURCES += drv/tsd/drv_tsd.c
   SOURCES += drv/uart/drv_uart.c
   SOURCES += drv/upi/drv_upi.c
+  SOURCES += drv/usb/drv_usb.c
+  SOURCES += drv/usb/drv_usb_volume.c
+  SOURCES += drv/usb/fm_usb_msc.c
   SOURCES += drv/videc/drv_videc.c
   SOURCES += drv/videc/drv_videc_decoder0.c
   SOURCES += drv/vienc/drv_vienc.c
@@ -67,6 +74,7 @@ include $(TOPDIR)/env/make/Makefile.config
   SOURCES += reg/$(DECODER)/reg_bm.c
   SOURCES += reg/$(DECODER)/reg_clkpwr.c
   SOURCES += reg/$(DECODER)/reg_ddrramif.c
+  SOURCES += reg/$(DECODER)/reg_dma.c
   SOURCES += reg/$(DECODER)/reg_gpio.c
   SOURCES += reg/$(DECODER)/reg_i2c.c
   SOURCES += reg/$(DECODER)/reg_irq_ctrl.c
@@ -91,8 +99,12 @@ include $(TOPDIR)/env/make/Makefile.config
   HEADERS += sys/sys_init.h
   HEADERS += sys/customer/sys_init_customer.h
   SOURCES += drv/bm/drv_bm_priv.h
+  SOURCES += drv/dma/drv_dma_priv.h
   SOURCES += drv/flash/drv_flash_priv.h
   SOURCES += drv/tsd/drv_tsd_priv.h
+  SOURCES += drv/usb/drv_usb_func_msc.h
+  SOURCES += drv/usb/drv_usb_func_vendor.h
+  SOURCES += drv/usb/drv_usb_volume.h
   SOURCES += drv/videc/drv_videc_priv.h
   SOURCES += drv/vienc/drv_vienc_priv.h
   SOURCES += drv/viscale/drv_viscale_priv.h

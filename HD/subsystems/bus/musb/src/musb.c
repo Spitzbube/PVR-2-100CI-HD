@@ -6044,7 +6044,7 @@ void func_21cc6cd8(struct MGC* a)
 
 /* v3.8: func_49d82c */
 /* 21cc6c24 - todo */
-MUSB_BusHandle func_21cc6c24(MUSB_Port* pPort,
+MUSB_BusHandle MUSB_RegisterOtgClient(MUSB_Port* pPort,
       MUSB_FunctionClient* pDevice,
       MUSB_HostClient* pDeviceDriverList,
       MUSB_OtgClient* pOtgClient)
@@ -6681,7 +6681,7 @@ int MGC_HsDmaReleaseBuffer(void* a, void* p)
 
 
 /* 21cc5594 - complete */
-int MGC_SetDmaControllerFactory(int a)
+int MUSB_FAPI_InitDma(int address)
 {
    Data_21f7a058.a1 = 0x200;
    Data_21f7a058.pfNewDmaController = MGC_HsNewDmaController;
@@ -6689,7 +6689,7 @@ int MGC_SetDmaControllerFactory(int a)
    
    MGC_SetExternalDmaControllerFactory(&Data_21f7a058);
    
-   Data_21f7a050 = a;
+   Data_21f7a050 = address;
    
    return 1;
 }
@@ -6725,7 +6725,7 @@ static int func_48c1c0(int a)
 
 /* 21cc4eac - todo */
 /* v3.8: func_49d2fc */
-void* func_21cc4eac(MUSB_SystemUtils* r8,
+void* MUSB_NewController(MUSB_SystemUtils* r8,
       unsigned short r9, int addr1, int addr2)
 {
    struct Struct_49d2fc_t* r6;
@@ -6829,7 +6829,7 @@ void* func_21cc4eac(MUSB_SystemUtils* r8,
 
 /* 21cc4dc8 - complete */
 /* v3.8: func_49c1d4 */
-MUSB_Port* func_21cc4dc8(unsigned short a)
+MUSB_Port* MUSB_GetPort(unsigned short a)
 {
    MUSB_Port* res = 0;
    
@@ -6854,7 +6854,7 @@ void func_21cc4d40(struct MGC* a)
 
 
 /* 21cc41c4 - complete */
-int func_21cc41c4(MUSB_Controller* a, MUSB_SystemServices* pOS)
+int MUSB_StartController(MUSB_Controller* a, MUSB_SystemServices* pOS)
 {
    Struct_49d2fc* r14 = 0;
    

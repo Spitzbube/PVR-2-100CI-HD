@@ -6,6 +6,7 @@
 #include "rtos.h"
 #endif
 #include "sys.h"
+#include "sys_api.h"
 #include "event_queue.h"
 
 

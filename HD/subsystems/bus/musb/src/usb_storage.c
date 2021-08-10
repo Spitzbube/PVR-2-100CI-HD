@@ -222,7 +222,7 @@ static MUSB_DeviceDriver usb_storage_driver = //21efa310
 
 
 /* 21bf6c00 - complete */
-int usb_storage_get_filter(uint8_t* a, unsigned short b)
+int MGC_FillStorageClassPeripheralList(uint8_t* a, unsigned short b)
 {
    int len = (b > 10)? 11: b;
    
@@ -722,7 +722,7 @@ void usb_storage_deinit(void* a, struct MGC* b, MUSB_Device* c)
 
 
 /* 21bf68b4 - complete */
-void* usb_storage_get_driver(void)
+void* MUSB_GetStorageClassDriver(void)
 {   
    return &usb_storage_driver;
 }

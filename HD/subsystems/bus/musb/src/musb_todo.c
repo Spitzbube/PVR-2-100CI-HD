@@ -7,14 +7,6 @@ void func_21c0ab7c()
 }
 
 
-/* 21b88b2c - todo */
-void func_21b88b2c(int a, int b)
-{
-//   FAPI_SYS_PRINT_MSG("21b88b2c\n");
-}
-
-
-
 void func_49a12c()
 {
 

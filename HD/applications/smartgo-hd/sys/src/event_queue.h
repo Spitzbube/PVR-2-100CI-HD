@@ -60,9 +60,13 @@ struct Event_50
 struct Event_59
 {
    struct EventHeader header; //0
+#if 1
+   USB_CONNECT_STATUS_S status; //8
+#else
    int insertFlag; //8
    int Data_12; //12
    int Data_16; //16
+#endif
    //20
 };
 

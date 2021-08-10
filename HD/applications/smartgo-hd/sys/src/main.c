@@ -9,6 +9,7 @@
 #include "app_main.h"
 #include "device.h"
 #include "event_queue.h"
+#include "sys.h"
 
 extern struct appData sysConfig; //21f7be58
 
@@ -73,11 +74,9 @@ int SYS_HandleEvent(int a, void* b)
    
    switch (a)
    {
-   case 59: //"USB"
+   case EVT_USB_CONNECT_STATUS: //59: //"USB"
       //21b8fc00
-#if 0
-      func_21bc382c(b);
-#endif
+      USB_ConnectStatusHandling(b);
       //->21b8fb48
       return 1;
       //break;

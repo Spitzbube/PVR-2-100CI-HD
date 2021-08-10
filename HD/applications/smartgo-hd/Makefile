@@ -48,6 +48,7 @@ SOURCES += sys/src/time.c
 SOURCES += sys/src/vfd.c
 SOURCES += sys/src/mcu.c
 SOURCES += sys/src/pvr_sys.c
+SOURCES += sys/src/dev_usb.c
 SOURCES += osd_window.c
 SOURCES += 21ba8d28.c
 SOURCES += 21b902b8.c
@@ -69,6 +70,8 @@ SOURCES += fgs/src/fgs_navilist.c
 SOURCES += fgs/src/fgs_panel.c
 #  SOURCES += fgs/src/fgs_pininput.c
 
+
+HEADERS += sys/inc/sys_priv.h
   
 HEADERS += sys/src/event_queue.h
 HEADERS += sys/src/device.h
@@ -133,6 +136,7 @@ LIBRARIES += osdhandler
 LIBRARIES += draw
 LIBRARIES += png
 LIBRARIES += z
+LIBRARIES += musb
 
 
 ################################################################################

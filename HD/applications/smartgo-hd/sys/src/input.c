@@ -11,6 +11,7 @@
 #include <fapi/drv_timer.h>
 #include <fapi/drv_uart.h>
 #include "sys.h"
+#include "sys_api.h"
 #if 0
 #include "rtos.h"
 #include "device.h"

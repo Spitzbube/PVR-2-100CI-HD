@@ -3,6 +3,7 @@
 #include <fapi/sys_services.h>
 #include <fapi/drv_timer.h>
 #include "sys.h"
+#include "sys_priv.h"
 #include "flash.h"
 #include "sys_time.h"
 

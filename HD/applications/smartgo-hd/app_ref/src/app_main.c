@@ -10,6 +10,7 @@
 #include <fapi/sys_services.h>
 #include "fapi_adapter.h"
 #endif
+#include "sys_api.h"
 #include "event_queue.h"
 #include "sys.h"
 #include "sys_time.h"

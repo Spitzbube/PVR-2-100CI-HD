@@ -25,6 +25,7 @@ typedef struct
 
 extern SYS_DATA_S* sysData; //21f02a10
 
+#if 0 //Moved to sys_api.h
 
 typedef uint32_t    SYS_EVTTYPE_E;
 
@@ -104,7 +105,7 @@ enum
     EVT_PCTRL_NOMOREAUTH,     //!< Parental control authorization not needed
                               //!< (anymore).
 
-    EVT_USB_CONNECT_STATUS,   //!< Connection status of a usb device has
+    EVT_USB_CONNECT_STATUS = 59,   //!< Connection status of a usb device has
                               //!< changed.
 
     EVT_DEV_FORMAT_FINISH,    //!< Notify the application that the format
@@ -127,6 +128,7 @@ typedef struct
 
 } SYS_EVTHDR_S;
 
+#endif
 
 typedef struct
 {

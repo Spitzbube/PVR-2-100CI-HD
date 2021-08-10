@@ -99,7 +99,7 @@
     #endif
 
     #ifndef FAPI_SYS_INIT_REG_DMA
-    #define FAPI_SYS_INIT_REG_DMA       0
+    #define FAPI_SYS_INIT_REG_DMA       1
     #endif
 
     #ifndef FAPI_SYS_INIT_REG_ETH
@@ -214,7 +214,7 @@
     #endif
 
     #ifndef FAPI_SYS_INIT_DMA
-    #define FAPI_SYS_INIT_DMA           0
+    #define FAPI_SYS_INIT_DMA           1
     #endif
 
     #ifndef FAPI_SYS_INIT_ETH
@@ -282,7 +282,7 @@
     #endif
 
     #ifndef FAPI_SYS_INIT_USB
-    #define FAPI_SYS_INIT_USB           0
+    #define FAPI_SYS_INIT_USB           1
     #endif
 
     #ifndef FAPI_SYS_INIT_VIDEC

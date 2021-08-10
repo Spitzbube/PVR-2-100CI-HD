@@ -5,6 +5,7 @@
 #include <fapi/drv_timer.h>
 #include "rtos/rtos.h"
 #include "sys.h"
+#include "sys_api.h"
 #include "event_queue.h"
 #include "device.h"
 
@@ -581,7 +582,7 @@ int SYS_DeviceWakeup(void)
 }
 
 /* 21b88d20 - todo */
-int func_21b88d20(uint32_t r5, int r4, int r7, struct Struct_21b88d20* r6)
+int SYS_DeviceSetAvailability(uint32_t r5, int r4, int r7, struct Struct_21b88d20* r6)
 {
    int res = 0;
    
@@ -633,6 +634,12 @@ int func_21b88d20(uint32_t r5, int r4, int r7, struct Struct_21b88d20* r6)
    return res;
 }
 
+
+/* 21b88b2c - todo */
+void SYS_DeviceSetExternalAccess(int a, int b)
+{
+   FAPI_SYS_PRINT_MSG("SYS_DeviceSetExternalAccess: TODO\n");
+}
 
 
 

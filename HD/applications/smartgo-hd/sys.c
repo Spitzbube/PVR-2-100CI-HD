@@ -867,13 +867,11 @@ void StartupThread(int a)
       }
 #endif
       //21b90748
-#if 0
       res = dev_usb_init();
       if (res != 0)
       {
          goto end;
       }
-#endif
       
       res = PVRSYS_Init();
       if (res != 0)
