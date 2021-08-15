@@ -10,7 +10,7 @@ extern void func_21c0ab7c(void); //drv_ata
 
 #define MUSB_MemAlloc FAPI_SYS_MALLOC
 #define MUSB_MemFree FAPI_SYS_FREE
-#define MUSB_MemSet musb_memset
+#define MUSB_MemSet MGC_FAPI_MemSet
 
 typedef struct
 {
@@ -409,7 +409,7 @@ int32_t FAPI_USB_FUNC_MSC_Init(FAPI_USB_FUNC_MSC_InitParamsT* paramsP)
     usbMscRbcMode.wcd = 0;
     usbMscRbcMode.blockLengthHighByte = 0;
     usbMscRbcMode.blockLengthLowByte = 0;
-    musb_memset(usbMscRbcMode.blockCount, 0, 5);
+    MGC_FAPI_MemSet(usbMscRbcMode.blockCount, 0, 5);
     usbMscRbcMode.powerPerformance = 0xff;
     usbMscRbcMode.flags = 0x00;
     usbMscRbcMode.reserved = 0;

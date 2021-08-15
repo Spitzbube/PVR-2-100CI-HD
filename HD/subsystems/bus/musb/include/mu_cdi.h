@@ -382,6 +382,6 @@ typedef struct
 } MUSB_OtgClient; //:t(13,84)=(13,85)=s16;
 
 
-typedef void (*MUSB_pfHubEnumerationComplete)(); //:t(13,86)=(13,87)=*(13,88)=f(0,19)
+//typedef void (*MUSB_pfHubEnumerationComplete)(); //:t(13,86)=(13,87)=*(13,88)=f(0,19)
 
 #endif /*MU_CDI_H_*/

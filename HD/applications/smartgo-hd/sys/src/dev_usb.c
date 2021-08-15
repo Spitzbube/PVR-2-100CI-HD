@@ -154,7 +154,7 @@ int32_t dev_usb_init(void)
       usbDat->mscLocked = 0;
 
       /* Setup USB function mode if HDD device is available */
-      if (0 != func_21b8818c(0, &hddStatus))
+      if (0 != SYS_DeviceGetStatus(0, &hddStatus))
       {
          break;
       }

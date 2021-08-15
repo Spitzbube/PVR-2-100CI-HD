@@ -437,7 +437,7 @@ void func_21b868f8(struct Struct_21f029f0_0* a, struct Struct_21b8818c* b)
 
 
 /* 21b8818c - complete */
-int func_21b8818c(unsigned a, struct Struct_21b8818c* b)
+int SYS_DeviceGetStatus(unsigned a, struct Struct_21b8818c* b)
 {
    int res = 0;
    

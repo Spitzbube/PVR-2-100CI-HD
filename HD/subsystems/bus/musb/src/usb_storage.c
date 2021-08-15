@@ -283,7 +283,7 @@ int func_21bf7288(USB_StorageBulkOnly* a, char lun, void* c)
          r16->Data_112.bDeviceAddress);
 #endif
 
-   musb_memset(r16->Data_112.arData_92, 0, 31*sizeof(unsigned short));
+   MGC_FAPI_MemSet(r16->Data_112.arData_92, 0, 31*sizeof(unsigned short));
 //      sizeof(r16->Data_112.arData_92));
 
    r0 = ((a->arDeviceResponseBuffer[0] >> 1) > 31)? 
@@ -489,7 +489,7 @@ void* func_21bf70e8(MUSB_Device* a,
       return 0;   
    }
 
-   musb_memset(r13, 0, sizeof(USB_StorageBulkOnly));
+   MGC_FAPI_MemSet(r13, 0, sizeof(USB_StorageBulkOnly));
 
    r13->Data_32 = r13;
    r13->Data_120 = a;
@@ -531,7 +531,7 @@ static Struct_498a94* func_498a94(MUSB_Device* a)
       return 0;   
    }
    
-   musb_memset(r13, 0, sizeof(Struct_498a94));
+   MGC_FAPI_MemSet(r13, 0, sizeof(Struct_498a94));
    
    r13->pDeviceDriver = &Data_601944; //func_491810();
    
@@ -1021,7 +1021,7 @@ void MUSB_StorageDriver_DeviceRequestComplete(void* pContext, MUSB_ControlIrp* b
          if (a->arLUN != 0) 
          {
             //21bf7ce0
-            musb_memset(a->arLUN, 0, 
+            MGC_FAPI_MemSet(a->arLUN, 0,
                a->bNumLUNs * sizeof(Struct_48b494_Inner1));
             
             for (i = 0; i < a->bNumLUNs; i++) 
@@ -1071,7 +1071,7 @@ void MUSB_StorageDriver_DeviceRequestComplete(void* pContext, MUSB_ControlIrp* b
       if (a->arLUN != 0) 
       {
          //21bf7e44
-         musb_memset(a->arLUN, 0, 
+         MGC_FAPI_MemSet(a->arLUN, 0,
             a->bNumLUNs * sizeof(Struct_48b494_Inner1));
          //21bf7e54
          for (i = 0; i < a->bNumLUNs; i++) 
@@ -1644,7 +1644,7 @@ Struct_499b0c* func_21bf8e00(int bNumLUNs)
    
    if (r13 != 0) 
    {
-      musb_memset(r13, 0, sizeof(Struct_499b0c)); 
+      MGC_FAPI_MemSet(r13, 0, sizeof(Struct_499b0c));
       r13->bNumLUNs = bNumLUNs;  
    }
    
@@ -1680,7 +1680,7 @@ void MUSB_StorageDriver_SendInquiryCommand(Struct_499b0c* a,
    a->bData_963 = 0;
    a->nStep = 1;
    
-   musb_memset(&a->arCommandBlock, 0, 16);
+   MGC_FAPI_MemSet(&a->arCommandBlock, 0, 16);
    a->arCommandBlock[0] = /*INQUIRY;*/ 0x12;
    a->arCommandBlock[4] = 36; // Allocation Length
    
@@ -1872,7 +1872,7 @@ void MUSB_StorageDriver_ReceiveInquiryResponse(
 //   hex_dump("MUSB_StorageDriver_ReceiveInquiryResponse", b, c);
    #endif
       
-   musb_memset(/*r25*/r20->arCommandBlock, 0, 16);
+   MGC_FAPI_MemSet(/*r25*/r20->arCommandBlock, 0, 16);
 
    if (r20->bRequestSense != 0) 
    {
@@ -1972,7 +1972,7 @@ void MUSB_StorageDriver_ReceiveInquiryResponse(
             if ((bRequestSense != 0) || (bUsbProtocolError != 0)) 
             {
                //4992f0   
-               musb_memset(&r20->arCapacityList[0], 0, 252);
+               MGC_FAPI_MemSet(&r20->arCapacityList[0], 0, 252);
 
                r20->bRequestSense = 0;
             }
@@ -2027,7 +2027,7 @@ void MUSB_StorageDriver_ReceiveInquiryResponse(
             if ((bRequestSense != 0) || (bUsbProtocolError != 0)) 
             {
                //4993a0   
-               musb_memset(&r20->rReadCapacityData, 0, 8);
+               MGC_FAPI_MemSet(&r20->rReadCapacityData, 0, 8);
             }
             //4993b0
             if (fp368 != 0) 
@@ -2202,7 +2202,7 @@ void MUSB_StorageDriver_ReceiveInquiryResponse(
       {  
          r15_ = r20->arInquiryData;
          
-         musb_memset(&fp280, 0, sizeof(fp280));
+         MGC_FAPI_MemSet(&fp280, 0, sizeof(fp280));
          
          //4996a0         
          switch (r20->arInquiryData[0] & 0x1F) //Peripheral Device Type

@@ -90,7 +90,7 @@ MUSB_DeviceRequest MUSB_rDeviceRequestGetConfigurationDescriptor =
 extern int Data_21f6652c; //21f6652c
 
 unsigned short wData_21f7a040; //21f7a040
-List_49cd8c Data_21f7a044; //21f7a044
+MUSB_LinkedList Data_21f7a044; //21f7a044
 int Data_21f7a050; //21f7a050
 MGC_HsDmaController* MGC_pHsDmaController; //21f7a054
 MGC_DmaControllerFactory Data_21f7a058; //21f7a058
@@ -100,7 +100,7 @@ char Data_2207f32c[0x100]; //2207f32c
 char Data_2207f42c[0x100]; //2207f42c
 
 
-int musb_log_core_options(struct MGC* a);
+uint8_t MGC_HdrcInit(struct MGC* a);
 void MGC_SetExternalDmaControllerFactory(MGC_DmaControllerFactory* a);
 
 int MGC_HsDmaStartController(void*);
@@ -138,8 +138,7 @@ int MGC_HdrcLoadFifo(struct MGC* a, char bEnd,
       unsigned wCount, const char* pSource);
 
 
-void* List_49a810_get_element(List_49a810* list, unsigned short b);
-int List_49a810_get_element_count(List_49a810* a);
+int List_49a810_get_element_count(MUSB_Array* a);
 char MGC_CompletedTransfer(MGC_Message* a, MGC_Endpoint* pEndpoint, 
                   char bStatus, int bTx, void* pUrb);
 
@@ -400,7 +399,7 @@ int func_21ccf72c(struct MGC* a,
    
    if (r21 == 0) 
    {
-      r21 = List_49cd8c_get_element((c != 0)? 
+      r21 = MUSB_ListFindItem((c != 0)?
          &b->tx_urb_list: 
          &b->rx_urb_list, 
          0);   
@@ -569,25 +568,6 @@ void musb_memcpy(void* a, void* b, int c)
 }
 
 
-/* 21ccf048 - todo */
-void musb_memset(void* a, unsigned char b, unsigned c)
-{   
-   unsigned i;
-   
-   if ((int)a & 0x03)
-   {
-      for (i = 0; i < c; i++)
-      {
-         ((char*)a)[i] = b;
-      }
-   }
-   else
-   {
-      memset(a, b, c);
-   }
-}
-
-
 /* 21ccefe0 - todo */
 /* v3.8: 48f780 - complete */
 /* Increase the memory for data */
@@ -610,37 +590,6 @@ void* func_21ccefe0(char* data, unsigned size)
 }
 
 
-
-
-/* 21ccef50 - complete */
-/* v3.8: func_49754c */
-int musb_log_release_info(struct MGC* a)
-{
-   int res;
-   unsigned short wRelease;
-   unsigned short wRelMajor;
-   unsigned short wRelMinor;
-   int addr2 = a->a->addr2;
-   
-   res = musb_log_core_options(a);
-   
-   /* log release info by reading the HWVERS register */ 
-   wRelease = MGC_Read16(addr2, 0x6c);
-   wRelMajor = ((wRelease & 0x7c00) >> 10) & 0xFF;
-   wRelMinor = wRelease & 0x3ff;
-   
-   if ((wRelMajor > 1) || ((wRelMajor == 1) && (wRelMinor >= 400))) 
-   {
-      a->bData_62 = 1; 
-   }
-
-   if ((wRelMajor > 1) || ((wRelMajor == 1) && (wRelMinor >= 600))) 
-   {
-      a->bData_64 = 1;   
-   }
-   
-   return res;   
-}
 
 
 /* v3.8: 48c35c - nearly complete */
@@ -669,7 +618,7 @@ MGC_Endpoint* func_48c35c(struct MGC* a,
    
    for (i = 0; i < r22; i++)
    {     
-      MGC_Endpoint* r0 = List_49a810_get_element(&a->ep_list, i);   
+      MGC_Endpoint* r0 = MUSB_ArrayFetch(&a->ep_list, i);
 
       char r1 = ((r0->bIsSharedFifo != 0) || (r13 != 0))? r0->g: r0->h;
 
@@ -1778,7 +1727,7 @@ int mgc_send_on_endpoint(struct MGC* a,
 
 
 /* 21ccdeb0 - todo */
-int List_49a810_add_element(List_49a810* list, void* data)
+int MUSB_ArrayAppend(MUSB_Array* list, void* data)
 {
    unsigned short r17;
    void* r0;
@@ -1834,30 +1783,8 @@ int List_49a810_add_element(List_49a810* list, void* data)
 }
 
 
-/* 21ccdb14 - complete */
-/* Get the data from the list at index b */
-void* List_49a810_get_element(List_49a810* list, unsigned short b)
-{
-   void* data = 0;
-   
-   if ((list != 0) && (b < list->num_elements)) 
-   {
-      if (b < list->count) 
-      {
-         data = (char*)(list->data) + (b * list->elem_size);   
-      }
-      else 
-      {
-         data = (char*)(list->more_data) + ((b - list->count) * list->elem_size);
-      }
-   }
-   
-   return data;
-}
-
-
 /* 21ccdb08 - complete */
-int List_49a810_get_element_count(List_49a810* a)
+int List_49a810_get_element_count(MUSB_Array* a)
 {
    int res = 0;
    if (a != 0) res = a->num_elements;
@@ -1866,13 +1793,13 @@ int List_49a810_get_element_count(List_49a810* a)
 
 
 /* 21ccda9c - todo */
-List_49a810* List_49a810_create(List_49a810* a, 
+MUSB_Array* MUSB_ArrayInit(MUSB_Array* a,
    unsigned short elem_size, unsigned short count, void* data)
 {
    if (a == 0) 
    {
       a = (FAPI_SYS_Services.mallocFunc != 0)? 
-            (FAPI_SYS_Services.mallocFunc)(sizeof(List_49a810)): 0;
+            (FAPI_SYS_Services.mallocFunc)(sizeof(MUSB_Array)): 0;
    }   
    
    if (a != 0) 
@@ -2296,7 +2223,7 @@ void MUSB_DeviceRequestComplete(void* pContext, MUSB_ControlIrp* b)
    Struct_49d2fc_Inner1_3* r15 = &r13->Data_156;
    MUSB_SystemServices* pOS = a->pOS;
       
-   MGC_Endpoint* ep0 = List_49a810_get_element(&r13->ep_list, 0);
+   MGC_Endpoint* ep0 = MUSB_ArrayFetch(&r13->ep_list, 0);
    
    #if 0
    FAPI_SYS_PRINT_MSG("MUSB_DeviceRequestComplete: r15->bStep=%d, r15->control_urb.dwStatus=%d\n",
@@ -2577,7 +2504,7 @@ void MUSB_DeviceRequestComplete(void* pContext, MUSB_ControlIrp* b)
 //                     r15->Data_80->pPrivateData->pDeviceDriver = pDeviceDriver;
 ((struct Struct_49d2fc_Inner1_3_2_t*)r15->Data_80->pPrivateData)->pDeviceDriver = pDeviceDriver;
                      
-                     List_49cd8c_add_element(&r13->List_524, 
+                     MUSB_ListAppendItem(&r13->List_524,
                         r15->Data_80, 0);      
                      
                      if (r13->Data_432 == 0) 
@@ -2804,9 +2731,9 @@ int MUSB_StartEnumeration(struct MGC* a, void* b,
    
    if (r13 != 0)
    {
-      musb_memset(r13, 0, sizeof(Struct_49d2fc_Inner1_3_2));
+      MGC_FAPI_MemSet(r13, 0, sizeof(Struct_49d2fc_Inner1_3_2));
       
-      List_49cd8c_clear(&r13->c);   
+      MUSB_ListInit(&r13->c);
    
       r13->d.pPrivateData = r13;
      
@@ -2852,12 +2779,12 @@ int func_21ccc488(struct MGC* a)
 {
 #if 0
    unsigned short i;
-   List_49cd8c* r15 = &a->List_524;   
+   MUSB_LinkedList* r15 = &a->List_524;
    int r16 = List_49cd8c_get_element_count(r15);
    
    for (i = 0; i < r16; i++) 
    {
-      MUSB_Device* r14 = List_49cd8c_get_element(r15, 0);
+      MUSB_Device* r14 = MUSB_ListFindItem(r15, 0);
 
       func_21ccc430(r14); 
       
@@ -2920,7 +2847,7 @@ int MUSB_StartControlTransaction(MUSB_Port* a,
 
    (pOS->pfLock)(pOS->pPrivateData, 1);
    
-   MGC_Endpoint* ep0 = List_49a810_get_element(&r15->ep_list, 0);
+   MGC_Endpoint* ep0 = MUSB_ArrayFetch(&r15->ep_list, 0);
    if (ep0 != 0) 
    {
       if (ep0->pCurrentTxUrb == 0) 
@@ -2937,7 +2864,7 @@ int MUSB_StartControlTransaction(MUSB_Port* a,
       } //if (ep0->pCurrentTxUrb == 0)
       else 
       {
-         if (0 == List_49cd8c_add_element(&ep0->tx_urb_list, pUrb, 0)) 
+         if (0 == MUSB_ListAppendItem(&ep0->tx_urb_list, pUrb, 0))
          {
             res = 166;   
          }
@@ -3028,50 +2955,8 @@ void func_21ccbb20(Struct_49d2fc* a, unsigned short b, MGC_Timer* c)
 }
 
 
-/* 21ccba9c - complete */
-/* v3.8: func_4923b8 */
-int musb_log_core_options(struct MGC* a)
-{
-   char reg;
-   int addr2 = a->a->addr2;
-   
-   /* log core options */ 
-   MGC_SelectEnd(addr2, 0); 
-   
-   reg = MGC_ReadCsr8(addr2, MGC_O_HDRC_CONFIGDATA, 0);
-   
-   if (reg & MGC_M_CONFIGDATA_MPRXE) 
-   {
-      a->bBulkCombine = 1; 
-      //"bulk combine"  
-   }
-   if (reg & MGC_M_CONFIGDATA_MPTXE) 
-   {
-      a->bBulkSplit = 1;
-      //"bulk split"   
-   }
-   if (reg & MGC_M_CONFIGDATA_HBRXE) 
-   {
-      a->bData_41 = 1;
-      //"HB-ISO Rx"   
-   }
-   if (reg & MGC_M_CONFIGDATA_HBTXE) 
-   {
-      a->bData_40 = 1;  
-      //"HB-ISO Tx" 
-   }
-   if (reg & MGC_M_CONFIGDATA_DYNFIFO) 
-   {
-      //ERR("Dynamic FIFOs detected in hardware; please rebuild\n"); 
-      return 0;   
-   }
-   
-   return MGC_HdrcConfigureEps(a);   
-}
-
-
 /* 21ccba24 - complete */
-int mgc_isr(MUSB_Controller* a)
+int MGC_HdrcIsr(MUSB_Controller* a)
 {
    int res;
    Struct_49d2fc* p = a->pPrivateData;
@@ -3092,9 +2977,9 @@ int mgc_isr(MUSB_Controller* a)
 
 
 /* 21ccb9ec - todo */
-void func_21ccb9ec(void)
+void MGC_HdrcDestroy(void)
 {
-   FAPI_SYS_PRINT_MSG("func_21ccb9ec\n");   
+   FAPI_SYS_PRINT_MSG("MGC_HdrcDestroy\n");
 }
 
 
@@ -3334,7 +3219,7 @@ int func_48d9bc(struct MGC* a, unsigned short b,
    
    int res = 0;
    
-   MGC_Endpoint* ep0 = List_49a810_get_element(&a->ep_list, 0);
+   MGC_Endpoint* ep0 = MUSB_ArrayFetch(&a->ep_list, 0);
    MUSB_ControlIrp* pControlUrb = ep0->pCurrentTxUrb;
    char* r2 = pControlUrb->pOutBuffer;
    
@@ -3480,7 +3365,7 @@ int MUSB_ContinueControlTransaction(struct MGC* a, MGC_Message* b,
    int r15 = 0;
    char fp2 = 0;
    
-   MGC_Endpoint* r17 = List_49a810_get_element(&a->ep_list, 0);
+   MGC_Endpoint* r17 = MUSB_ArrayFetch(&a->ep_list, 0);
    
    if (a->bHostMode != 0) 
    {
@@ -3764,10 +3649,10 @@ int func_49a050(struct MGC* a)
 {
    int res = 0;
    
-   MGC_Endpoint* ep0 = List_49a810_get_element(&a->ep_list, 0);
+   MGC_Endpoint* ep0 = MUSB_ArrayFetch(&a->ep_list, 0);
    if (ep0 != 0) 
    {
-      MUSB_ControlIrp* pControlUrb = List_49cd8c_get_element(&ep0->tx_urb_list, 0);
+      MUSB_ControlIrp* pControlUrb = MUSB_ListFindItem(&ep0->tx_urb_list, 0);
       if (pControlUrb != 0) 
       {
          res = 1;
@@ -3799,7 +3684,7 @@ int MGC_HdrcServiceDefaultEnd(struct MGC* a, MGC_Message* b)
    int res = 0;
    char status = 0;
    
-   MGC_Endpoint* r19 = List_49a810_get_element(&a->ep_list, 0);
+   MGC_Endpoint* r19 = MUSB_ArrayFetch(&a->ep_list, 0);
    int pBase = a->a->addr1;
    
    MGC_SelectEnd(pBase, 0);
@@ -4013,7 +3898,7 @@ int MGC_HdrcServiceRxReady(struct MGC* a, unsigned short wEnd, MGC_Message* c)
    
    MGC_SelectEnd(pBase, bEnd);   
    wRxCsrVal = MGC_ReadCsr16(pBase, MGC_O_HDRC_RXCSR, bEnd);
-   pEnd = List_49a810_get_element(&a->ep_list, wEnd);
+   pEnd = MUSB_ArrayFetch(&a->ep_list, wEnd);
 
    if (a->bHostMode != 0) 
    {
@@ -4378,7 +4263,7 @@ int MGC_HdrcServiceTxAvail(struct MGC* a, unsigned short wEnd, MGC_Message* c)
    
    MGC_SelectEnd(pBase, bEnd);
    wTxCsrVal = MGC_ReadCsr16(pBase, MGC_O_HDRC_TXCSR, bEnd);
-   pEnd = List_49a810_get_element(&a->ep_list, wEnd);
+   pEnd = MUSB_ArrayFetch(&a->ep_list, wEnd);
    
    if (a->bHostMode != 0) 
    {
@@ -4523,40 +4408,6 @@ int MGC_HdrcServiceTxAvail(struct MGC* a, unsigned short wEnd, MGC_Message* c)
 }
 
 
-/* 21cc9e18 - complete */
-int mgc_set_interrupt_enables(Struct_49d2fc* a)
-{
-   int addr1 = a->addr1;
-   struct MGC* r13 = a->Data_20;
-   
-   MGC_Write16(addr1, MGC_O_HDRC_INTRTXE, r13->wEndMask);
-   
-   MGC_Write16(addr1, MGC_O_HDRC_INTRRXE, r13->wEndMask & ~1);
-   
-   MGC_Write8(addr1, MGC_O_HDRC_INTRUSBE, 0xF7); //1111 0111
-   
-   r13->bData_68 = 0;
-   
-   return 0;   
-}
-
-
-/* 21cc9db4 - complete */
-int mgc_set_interrupt_disables(Struct_49d2fc* a)
-{
-   int pBase = a->addr2;
-   
-   MGC_Write8(pBase, MGC_O_HDRC_INTRUSBE, 0);
-   MGC_Write16(pBase, MGC_O_HDRC_INTRTXE, 0);
-   MGC_Write16(pBase, MGC_O_HDRC_INTRRXE, 0);
-   MGC_Read8(pBase, MGC_O_HDRC_INTRUSB);
-   MGC_Read16(pBase, MGC_O_HDRC_INTRTX);
-   MGC_Read16(pBase, MGC_O_HDRC_INTRRX);
-   
-   return 0;   
-}
-
-
 /* 21cc993c - todo */
 /* v3.8: 491FF8 - complete */
 int func_21cc993c(struct MGC* a, 
@@ -4639,7 +4490,7 @@ int func_21cc993c(struct MGC* a,
 
 
 /* 21cc97ec - complete */
-int func_21cc97ec(struct MGC* a)
+int MGC_HdrcReadBusState(struct MGC* a) /*418*/
 {
    char vbus;
    char power;
@@ -4698,7 +4549,7 @@ int func_21cc97ec(struct MGC* a)
    a->Data_44 = MGC_Read16(pBase, MGC_O_HDRC_FRAME);
    
 #if 0
-   FAPI_SYS_PRINT_MSG("func_21cc97ec: devctl=0x%x power=0x%x vbus=0x%x Data_44=%d\n", 
+   FAPI_SYS_PRINT_MSG("MGC_HdrcReadBusState: devctl=0x%x power=0x%x vbus=0x%x Data_44=%d\n",
          devctl, power, vbus, a->Data_44);
 #endif
    
@@ -5108,96 +4959,6 @@ void func_21cc8328(char* a)
    FAPI_SYS_PRINT_MSG("musb: %s\n", a);
    
    Data_21cc3b54 = 0;
-}
-
-
-/* 21cc8000 - todo */
-int MGC_HdrcConfigureEps(struct MGC* a)
-{   
-   MGC_Endpoint ep;
-   int reg;
-   char bEnd;
-   int addr2 = a->a->addr2;
-   int res = 0;
-   
-   /* At least Endpoint 0 */
-   a->bEndCount = 1;
-   a->wEndMask = (1 << 0);
-   int r6 = 1;
-   
-   for (bEnd = 1; bEnd < MUSB_C_NUM_EPS; bEnd++) 
-   {
-      MGC_SelectEnd(addr2, bEnd);
-
-      if (0 == MGC_ReadCsr8(addr2, MGC_O_HDRC_FIFOSIZE, bEnd)) 
-      {
-         /* 0's returned when no more endpoints */ 
-         break;   
-      }
-      
-      a->bEndCount++;
-      a->wEndMask |= (r6 << bEnd);
-   }
-   
-   a->c = (FAPI_SYS_Services.mallocFunc != 0)?
-         (FAPI_SYS_Services.mallocFunc)(a->bEndCount * sizeof(MGC_Endpoint)): 0;
-         
-   if (a->c != 0) 
-   {
-      // Add a->c to a->Data_12
-      if (0 != List_49a810_create(&a->ep_list, 
-         sizeof(MGC_Endpoint), a->bEndCount, a->c)) 
-      {
-         res = 1;
-     
-         musb_memset(&ep, 0, sizeof(MGC_Endpoint));
-      
-         ep.bIsSharedFifo = 1;
-         ep.bTxTrafficType = 0;
-         ep.bRxTrafficType = 0;
-         ep.wMaxPacketSizeTx = (1 << 6); //64
-         ep.wMaxPacketSizeRx = (1 << 6); //64
-         ep.g = 1;
-         ep.h = 1;
-      
-         // Add ep0 to a->ep_list
-         List_49a810_add_element(&a->ep_list, &ep);
-      
-         for (bEnd = 1; bEnd < a->bEndCount; bEnd++) 
-         {
-            MGC_SelectEnd(addr2, bEnd);
-            
-            reg = MGC_ReadCsr8(addr2, MGC_O_HDRC_FIFOSIZE, bEnd);
-            
-            musb_memset(&ep, 0, sizeof(MGC_Endpoint));   
-            
-            ep.bEnd = bEnd;
-            ep.wMaxPacketSizeTx = 1 << (reg & 0x0F);
-            /* shared TX/RX FIFO? */ 
-            if ((reg & 0xF0) == 0xF0) 
-            {
-               ep.wMaxPacketSizeRx = 1 << (reg & 0x0F);
-               ep.bIsSharedFifo = 1;   
-            }
-            else 
-            {
-               ep.wMaxPacketSizeRx = 1 << ((reg & 0xF0) >> 4);   
-               ep.bIsSharedFifo = 0;
-            }
-         
-            // Add ep to a->list_12
-            List_49a810_add_element(&a->ep_list, &ep);
-         }
-      }
-      else 
-      {
-         (FAPI_SYS_Services.freeFunc)(a->c);   
-      }
-   }   
-
-   MGC_Write8(addr2, 14, 0);
-      
-   return res;
 }
 
 
@@ -5612,7 +5373,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
          bEndCount = List_49a810_get_element_count(&a->ep_list);
          for (bEnd = 1; bEnd < bEndCount; bEnd++) 
          {
-            MGC_Endpoint* r1 = List_49a810_get_element(&a->ep_list, bEnd); 
+            MGC_Endpoint* r1 = MUSB_ArrayFetch(&a->ep_list, bEnd);
             
             // Isochronous transfers?
               
@@ -5645,7 +5406,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
 
 
 /* 21cc6ed0 - todo */
-void mgc_handle_messages(MUSB_Port* a)
+void MGC_DrcBsr(MUSB_Port* a)
 {
    MGC_Message sp8;      
    struct MGC* r4 = a->pPrivateData;
@@ -5656,11 +5417,11 @@ void mgc_handle_messages(MUSB_Port* a)
    while (0 != (pOS->pfDequeueBackgroundItem)(pOS->pPrivateData, &sp8))
    {
       #if 0
-      FAPI_SYS_PRINT_MSG("mgc_handle_messages: r4->bData_68=%d, sp8.bTag=%d, sp8.bEnd=%d, sp8.bStatus=0x%x\n", 
+      FAPI_SYS_PRINT_MSG("MGC_DrcBsr: r4->bData_68=%d, sp8.bTag=%d, sp8.bEnd=%d, sp8.bStatus=0x%x\n",
          r4->bData_68, sp8.bTag, sp8.bEnd, sp8.bStatus);
       #endif
 
-      //List_49a810* sp4 = &r4->ep_list;
+      //MUSB_Array* sp4 = &r4->ep_list;
       //int r9 = 0;      
       
       switch (sp8.bTag) 
@@ -5868,7 +5629,7 @@ void mgc_handle_messages(MUSB_Port* a)
          case 36: //Rx
          {
             //21cc7008
-            MGC_Endpoint* r5 = List_49a810_get_element(&r4->ep_list/*sp4*/, sp8.bEnd);
+            MGC_Endpoint* r5 = MUSB_ArrayFetch(&r4->ep_list/*sp4*/, sp8.bEnd);
             if (r5 != 0) 
             {
                #if 0
@@ -6307,7 +6068,7 @@ void func_21cc6694(struct MGC* a)
    
    for (i = 1; i < numEndpoints; i++) 
    {
-      MGC_Endpoint* pEndpoint = List_49a810_get_element(&a->ep_list, i);   
+      MGC_Endpoint* pEndpoint = MUSB_ArrayFetch(&a->ep_list, i);
       
       if (pEndpoint != 0) 
       {
@@ -6323,7 +6084,7 @@ void func_21cc6694(struct MGC* a)
          
          for (j = 0; j < numURBs; j++) 
          {
-            pUrb = List_49cd8c_get_element(&pEndpoint->tx_urb_list, 0);
+            pUrb = MUSB_ListFindItem(&pEndpoint->tx_urb_list, 0);
             List_49cd8c_remove_element(&pEndpoint->tx_urb_list, pUrb);   
          }
 
@@ -6331,7 +6092,7 @@ void func_21cc6694(struct MGC* a)
          
          for (j = 0; j < numURBs; j++) 
          {
-            pUrb = List_49cd8c_get_element(&pEndpoint->rx_urb_list, 0);
+            pUrb = MUSB_ListFindItem(&pEndpoint->rx_urb_list, 0);
             List_49cd8c_remove_element(&pEndpoint->rx_urb_list, pUrb);   
          }
       }
@@ -6394,7 +6155,7 @@ void func_21cc6144(Struct_49d2fc* a, unsigned short b, MGC_Timer* c)
       {
          int a; //0
          void* b; //4   
-      }* r0 = List_49cd8c_get_element(&r13->List_524, r16);   
+      }* r0 = MUSB_ListFindItem(&r13->List_524, r16);
       if (r0 != 0)
       {
          struct 
@@ -6427,9 +6188,9 @@ void func_21cc6144(Struct_49d2fc* a, unsigned short b, MGC_Timer* c)
 
 
 /* 21cc6100 - todo */
-void func_21cc6100(void)
+void MGC_DrcSetHostPower(void)
 {
-   FAPI_SYS_PRINT_MSG("func_21cc6100\n");
+   FAPI_SYS_PRINT_MSG("MGC_DrcSetHostPower\n");
 }
 
 
@@ -6574,7 +6335,7 @@ MGC_DmaController* MGC_HsNewDmaController(int (*pfDmaChannelStatusChanged)(void*
          
       if (MGC_pHsDmaController != 0) 
       {
-         musb_memset(MGC_pHsDmaController, 0, sizeof(MGC_HsDmaController));
+         MGC_FAPI_MemSet(MGC_pHsDmaController, 0, sizeof(MGC_HsDmaController));
 
          MGC_pHsDmaController->pfDmaChannelStatusChanged = pfDmaChannelStatusChanged;
          MGC_pHsDmaController->pDmaPrivate = pDmaPrivate;
@@ -6616,7 +6377,7 @@ void MGC_HsDmaReleaseChannel(MGC_DmaChannel* pChannel)
       {
          FAPI_DMA_RequestT* request = pImplChannel->Channel.f;
          
-         musb_memset(pImplChannel, 0, sizeof(MGC_HsDmaChannel));
+         MGC_FAPI_MemSet(pImplChannel, 0, sizeof(MGC_HsDmaChannel));
          
          pImplChannel->Channel.f = request;
       }
@@ -6696,14 +6457,14 @@ int MUSB_FAPI_InitDma(int address)
 
 
 /* 48bd78 - todo */
-static void func_48bd78(Struct_49d2fc* a, int addr1, int addr2)
+static void MGC_ControllerInit(Struct_49d2fc* a, int addr1, int addr2)
 {
    a->addr1 = addr1;
    a->addr2 = addr2;
    a->Data_20 = &a->Data_88;   
    
-   List_49cd8c_clear(&a->Data_88.List_524);
-   List_49cd8c_clear(&a->Data_88.Data_536.b);
+   MUSB_ListInit(&a->Data_88.List_524);
+   MUSB_ListInit(&a->Data_88.Data_536.b);
 
    a->Data_88.b = &a->Data_88.usbPort;
    a->Data_48.wVersion = 1;
@@ -6717,132 +6478,9 @@ static void func_48bd78(Struct_49d2fc* a, int addr1, int addr2)
 
 
 /* 48c1c0 - complete */
-static int func_48c1c0(int a)
+static int MGC_DiscoverController(int a)
 {
    return 0;
-}
-
-
-/* 21cc4eac - todo */
-/* v3.8: func_49d2fc */
-void* MUSB_NewController(MUSB_SystemUtils* r8,
-      unsigned short r9, int addr1, int addr2)
-{
-   struct Struct_49d2fc_t* r6;
-   int r0 = 0;
-   void* r14 = 0; 
-   
-   r6 = FAPI_SYS_MALLOC(sizeof(struct Struct_49d2fc_t));
-         
-   if (r6 != 0)
-   {
-      musb_memset(r6, 0, sizeof(struct Struct_49d2fc_t));
-         
-      /* Add an element in the list and set its data */      
-      if (0 == List_49cd8c_add_element(&Data_21f7a044, r6, 0))
-      {
-         //21cc4f70
-         (FAPI_SYS_Services.freeFunc)(r6);
-         r6 = 0; //return 0;
-      }
-      else
-      {
-         wData_21f7a040++;
-      }
-   }
-   
-   if (r6 != 0)
-   {
-      r6->pSystemUtils = r8;
-      //memcpy((void*)&r6->pSystemUtils, (void*)r8, sizeof(MUSB_SystemUtils));
-      
-      func_48bd78(r6, addr1, addr2);
-                  
-      if (r9 == 0)
-      {
-         r9 = func_48c1c0(addr2);
-      }
-      
-      if (r9 == 3)
-      {
-         r0 = musb_log_release_info(&r6->Data_88); 
-         
-         r6->Data_88.bData_28 = 1;
-         r6->Data_88.bData_42 = 1;
-
-         r6->Data_48.wQueueLength = 80;
-         r6->Data_48.wQueueItemSize = 8;
-         r6->Data_48.wTimerCount = 1;
-         r6->Data_48.adwTimerResolutions = Data_21f02130;
-         r6->Data_48.wLockCount = 17;
-         r6->Data_48.pfIsr = mgc_isr;
-         r6->Data_48.pIsrParam = &r6->Data_48;
-         r6->Data_48.pfBsr = mgc_handle_messages;
-         r6->Data_48.pBsrParam = &r6->Data_88.usbPort;
-         
-         r6->pDmaControllerFactory = mgc_pDmaControllerFactory;
-         r6->pfEnableInterrupts = mgc_set_interrupt_enables;
-         r6->pfDisableInterrupts = mgc_set_interrupt_disables;
-         r6->Data_36 = func_21ccb9ec;
-         r6->Data_40 = func_21cc6100;
-                  
-         r6->Data_88.Func_616 = func_21cc97ec;
-         r6->Data_88.Func_620 = func_21cc96e8;
-         r6->Data_88.Func_624 = func_21cc67d8;
-         r6->Data_88.Func_628 = func_21cceaac;
-         r6->Data_88.pfReceiveOnEp = mgc_receive_on_endpoint;
-         r6->Data_88.pfSendOnEp = mgc_send_on_endpoint;
-         r6->Data_88.Func_640 = func_21cc993c;
-         r6->Data_88.Func_644 = func_21ccb504;
-         r6->Data_88.Func_648 = func_21ccabf0;
-         r6->Data_88.pfDefaultEndHandler = MGC_HdrcServiceDefaultEnd;
-         r6->Data_88.pfServiceRxReady = MGC_HdrcServiceRxReady;
-         r6->Data_88.pfServiceTxAvail = MGC_HdrcServiceTxAvail;
-         r6->Data_88.pfLoadFifo = MGC_HdrcLoadFifo;
-         r6->Data_88.pfUnloadFifo = MGC_HdrcUnloadFifo;
-         r6->Data_88.Func_672 = func_21cc6d64;
-         r6->Data_88.pfDmaChannelStatusChanged = func_21ccb018;
-         r6->Data_88.Func_680 = func_21cca940;
-         r6->Data_88.Func_684 = func_21cc9530;
-
-         r6->Data_88.usbPort.Type = MUSB_PORT_TYPE_OTG; //r9;
-         r6->Data_88.usbPort.Speed = MUSB_PORT_SPEED_HIGH; //r9;
-      }      
-   }
-   
-   if (r0 != 0)
-   {
-      char i;
-      for (i = 0; i < r6->Data_88.bEndCount; i++)
-      {
-         MGC_Endpoint* pEnd = List_49a810_get_element(&r6->Data_88.ep_list, i);
-         
-         List_49cd8c_clear(&pEnd->tx_urb_list);
-         List_49cd8c_clear(&pEnd->rx_urb_list);
-      }
-      r14 = &r6->Data_48;
-   }
-      
-   return r14;
-}
-
-
-/* 21cc4dc8 - complete */
-/* v3.8: func_49c1d4 */
-MUSB_Port* MUSB_GetPort(unsigned short a)
-{
-   MUSB_Port* res = 0;
-   
-   if (a < wData_21f7a040)
-   {
-      Struct_49d2fc* r0 = List_49cd8c_get_element(&Data_21f7a044, a);      
-      if (r0 != 0)
-      {
-         res = &r0->Data_88.usbPort;
-      }
-   }
-   
-   return res;
 }
 
 
@@ -6850,45 +6488,6 @@ MUSB_Port* MUSB_GetPort(unsigned short a)
 void func_21cc4d40(struct MGC* a)
 {
    printf("func_21cc4d40");
-}
-
-
-/* 21cc41c4 - complete */
-int MUSB_StartController(MUSB_Controller* a, MUSB_SystemServices* pOS)
-{
-   Struct_49d2fc* r14 = 0;
-   
-   if (a != 0) 
-   {
-      r14 = a->pPrivateData;
-   }
-   
-   if (r14 != 0) 
-   {
-      if (r14->pDmaControllerFactory != 0) 
-      {
-         r14->Data_20->pDmaController =
-            (r14->pDmaControllerFactory->pfNewDmaController)(
-               r14->Data_20->pfDmaChannelStatusChanged, 
-               /*pDmaPrivate*/r14->Data_20, 
-               pOS->pfSystemToBusAddress,
-               pOS->pPrivateData,
-               r14->addr1,
-               r14->addr2);      
-      }
-      
-      if (r14->Data_20->pDmaController != 0) 
-      {
-         (r14->Data_20->pDmaController->pfDmaStartController)(
-            r14->Data_20->pDmaController->pPrivateData);   
-      }
-      
-      r14->pOS = pOS;
-      
-      return (r14->pfEnableInterrupts)(r14);
-   }
-   
-   return 132;
 }
 
 
@@ -7129,24 +6728,24 @@ int func_48bcb4(Struct_601854* a, char transfer_type, int endpoint_dir, unsigned
 
 
 /* 48e610 - complete */
-List_49cd8c* func_48e610(Struct_49d2fc_Inner1_5* a, 
+MUSB_LinkedList* func_48e610(Struct_49d2fc_Inner1_5* a,
                   Struct_601854* b, 
                   unsigned short c, 
                   unsigned short d, 
                   int e)
 {
-   List_49cd8c* r13;
+   MUSB_LinkedList* r13;
    
    if (a->c == 0) 
    {
-      r13 = FAPI_SYS_MALLOC(sizeof(List_49cd8c));
+      r13 = FAPI_SYS_MALLOC(sizeof(MUSB_LinkedList));
       if (r13 != 0) 
       {
-         musb_memset(r13, 0, sizeof(List_49cd8c));
+         MGC_FAPI_MemSet(r13, 0, sizeof(MUSB_LinkedList));
          
-         List_49cd8c_clear(r13);
+         MUSB_ListInit(r13);
          
-         if (0 != List_49cd8c_add_element(&a->b, r13, 0)) 
+         if (0 != MUSB_ListAppendItem(&a->b, r13, 0))
          {
             a->c = 1;   
          }
@@ -7159,7 +6758,7 @@ List_49cd8c* func_48e610(Struct_49d2fc_Inner1_5* a,
    }
    else 
    {
-      r13 = List_49cd8c_get_element(&a->b, 0);         
+      r13 = MUSB_ListFindItem(&a->b, 0);
    }
    
    if (r13 != 0) 
@@ -7259,7 +6858,7 @@ int func_48b728(struct MGC* a, MGC_Pipe* b, MUSB_DeviceEndpoint* c)
       case 3:
          //48b8e0 
          {
-            List_49cd8c* r13_ = func_48e610(&a->Data_536, r23, r22, r17, r19);
+            MUSB_LinkedList* r13_ = func_48e610(&a->Data_536, r23, r22, r17, r19);
             if (r13_ != 0) 
             {
                res = 1;
@@ -7274,17 +6873,17 @@ int func_48b728(struct MGC* a, MGC_Pipe* b, MUSB_DeviceEndpoint* c)
                      {
                         ((void**)r20)[1] = r14_;
                      
-                        musb_memset(r14_, 0, sizeof(Struct_49d2fc_Inner1_5));
-                        List_49cd8c_clear(&r14_->b);   
+                        MGC_FAPI_MemSet(r14_, 0, sizeof(Struct_49d2fc_Inner1_5));
+                        MUSB_ListInit(&r14_->b);
                      }
                   }
                   //48b95c
                   if (r14_ != 0) 
                   {
-                     List_49cd8c* r0 = func_48e610(r14_, r16, r22, r17, r19);
+                     MUSB_LinkedList* r0 = func_48e610(r14_, r16, r22, r17, r19);
                      if (r0 != 0) 
                      {
-                        res = List_49cd8c_add_element(r0, b, 0);   
+                        res = MUSB_ListAppendItem(r0, b, 0);
                      }
                      else 
                      {
@@ -7299,7 +6898,7 @@ int func_48b728(struct MGC* a, MGC_Pipe* b, MUSB_DeviceEndpoint* c)
                //48b99c
                if (res != 0) 
                {
-                  res = List_49cd8c_add_element(r13_, b, 0);   
+                  res = MUSB_ListAppendItem(r13_, b, 0);
                   b->Data_12 = r13_;
                }
             }
@@ -7356,7 +6955,7 @@ MGC_Pipe* func_21ccc5a8(struct MGC* a,
    r20 = FAPI_SYS_MALLOC(sizeof(MGC_Pipe));
    if (r20 != 0) 
    {
-      musb_memset(r20, 0, sizeof(MGC_Pipe));
+      MGC_FAPI_MemSet(r20, 0, sizeof(MGC_Pipe));
    
       r20->Data_0 = a;
       r20->Data_8 = r19;
@@ -7388,7 +6987,7 @@ MGC_Pipe* func_21ccc5a8(struct MGC* a,
       }
 
       if ((ep != 0) && (r16 != 0) &&
-         (0 != List_49cd8c_add_element(&r23->c, r20, 0))) 
+         (0 != MUSB_ListAppendItem(&r23->c, r20, 0)))
       {
          r20->pEndpoint = ep;
          r22 = r20;  
@@ -7458,7 +7057,7 @@ int func_21ccc110(MGC_Pipe* a)
    
    List_49cd8c_remove_element(&r15->c, a);
    
-   musb_memset(a, 0, sizeof(MGC_Pipe));
+   MGC_FAPI_MemSet(a, 0, sizeof(MGC_Pipe));
    FAPI_SYS_FREE(a);
    
    if (r19 != 0) 
@@ -7510,7 +7109,7 @@ void func_21ccc2b4(struct MGC* a, MUSB_Device* b)
       int r20 = List_49cd8c_get_element_count(&r13->c);
       for (unsigned short i = 0; i < r20; i++) 
       {
-         MGC_Pipe* r1 = List_49cd8c_get_element(&r13->c, 0);   
+         MGC_Pipe* r1 = MUSB_ListFindItem(&r13->c, 0);
          
          if (r1->Data_12 != 0) 
          {
@@ -7604,12 +7203,12 @@ uint32_t MUSB_StartTransfer(MUSB_Irp* a)
                {
                   //21ccfd48
 #if 0
-                  if (0 == List_49cd8c_add_element(&pEndpoint->rx_urb_list, a, 0))
+                  if (0 == MUSB_ListAppendItem(&pEndpoint->rx_urb_list, a, 0))
                   {
                      res = 166;
                   }
 #else
-                  res = (0 == List_49cd8c_add_element(&pEndpoint->rx_urb_list, a, 0))?
+                  res = (0 == MUSB_ListAppendItem(&pEndpoint->rx_urb_list, a, 0))?
                         166: 0;
 #endif
                }
@@ -7617,12 +7216,12 @@ uint32_t MUSB_StartTransfer(MUSB_Irp* a)
                {
                   //21ccfdf8
 #if 1
-                  if (0 == List_49cd8c_add_element(&pEndpoint->tx_urb_list, a, 0)) 
+                  if (0 == MUSB_ListAppendItem(&pEndpoint->tx_urb_list, a, 0))
                   {
                      res = 166;
                   }
 #else
-                  res = (0 == List_49cd8c_add_element(&pEndpoint->tx_urb_list, a, 0))?
+                  res = (0 == MUSB_ListAppendItem(&pEndpoint->tx_urb_list, a, 0))?
                         166: 0;
 #endif
                }
@@ -7631,7 +7230,7 @@ uint32_t MUSB_StartTransfer(MUSB_Irp* a)
             if (bTx != 0)
             {        
                if ((pEndpoint->pCurrentTxUrb == 0) &&
-                     (a == List_49cd8c_get_element(&pEndpoint->tx_urb_list, 0)))
+                     (a == MUSB_ListFindItem(&pEndpoint->tx_urb_list, 0)))
                {
                   func_21ccf72c(r14, pEndpoint, 1);                  
                }                   
@@ -7639,7 +7238,7 @@ uint32_t MUSB_StartTransfer(MUSB_Irp* a)
             else
             {        
                if ((pEndpoint->pCurrentRxUrb == 0) &&
-                     (a == List_49cd8c_get_element(&pEndpoint->rx_urb_list, 0)))
+                     (a == MUSB_ListFindItem(&pEndpoint->rx_urb_list, 0)))
                {
                   func_21ccf72c(r14, pEndpoint, 0);
                }

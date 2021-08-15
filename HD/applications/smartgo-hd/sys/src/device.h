@@ -26,7 +26,7 @@ extern int device_init(void);
 extern int device_add(unsigned, struct deviceParams*);
 extern int func_21b8961c(void);
 extern int device_set_use(unsigned, unsigned);
-extern int func_21b8818c(unsigned, struct Struct_21b8818c*);
+extern int SYS_DeviceGetStatus(unsigned, struct Struct_21b8818c*);
 extern int SYS_DeviceWakeup(void);
 
 

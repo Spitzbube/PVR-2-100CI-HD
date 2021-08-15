@@ -36,6 +36,11 @@ include $(TOPDIR)/env/make/Makefile.config
   HEADERS += $(wildcard src/systems/FAPI4/fapi_*.h)
 
   SOURCES  = src/list_49cd8c.c
+  SOURCES += src/mu_cntlr.c
+  SOURCES += src/mu_drc.c
+  SOURCES += src/mu_hdr.c
+  SOURCES += src/mu_mdr.c
+  SOURCES += src/mu_mem.c
   SOURCES += src/musb.c
   SOURCES += src/musb_dma_dummy.c
   SOURCES += src/musb_todo.c
