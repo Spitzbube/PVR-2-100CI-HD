@@ -113,13 +113,13 @@ int MGC_HsDmaProgramChannel(MGC_DmaChannel* pChannel,
                         const char* pBuffer, 
                         int dwLength);
 int MGC_HsDmaGetChannelStatus(MGC_DmaChannel*);
-int mgc_handle_interrupts(Struct_49d2fc*, char, 
+int MGC_DrcIsr(Struct_49d2fc*, char,
                   unsigned short, unsigned short);
-int mgc_hdrc_service_usb(struct MGC*, char);
-void func_21cc6694(struct MGC*);
-void func_21cc6b68(struct MGC*, char);
+int MGC_DrcUsbIsr(struct MGC*, char);
+void MGC_DrcFlushAll(struct MGC*);
+void MGC_OtgStateGetId(struct MGC*, char);
 void func_21cc6144(Struct_49d2fc*, unsigned short, MGC_Timer*);
-void func_21cc686c(char, struct MGC*);
+void MGC_DrcChangeOtgState(char, struct MGC*);
 void musb_otg_state_changed(struct MGC*);
 void func_21cc5fac(Struct_49d2fc*, unsigned short, MGC_Timer*);
 void func_21cc4d40(struct MGC*);
@@ -138,7 +138,7 @@ int MGC_HdrcLoadFifo(struct MGC* a, char bEnd,
       unsigned wCount, const char* pSource);
 
 
-int List_49a810_get_element_count(MUSB_Array* a);
+int MUSB_ArrayLength(MUSB_Array* a);
 char MGC_CompletedTransfer(MGC_Message* a, MGC_Endpoint* pEndpoint, 
                   char bStatus, int bTx, void* pUrb);
 
@@ -376,7 +376,7 @@ void MGC_Write32(int base_addr, unsigned short addr, unsigned long data)
 
 /* 21ccf72c - todo */
 /* v3.8: 49a12c */
-int func_21ccf72c(struct MGC* a, 
+int MGC_StartNextIrp(struct MGC* a,
                 MGC_Endpoint* b, int c)
 {   
    char r0;
@@ -614,7 +614,7 @@ MGC_Endpoint* func_48c35c(struct MGC* a,
       r13 = !r13;
    }
    
-   unsigned r22 = List_49a810_get_element_count(&a->ep_list);
+   unsigned r22 = MUSB_ArrayLength(&a->ep_list);
    
    for (i = 0; i < r22; i++)
    {     
@@ -1784,7 +1784,7 @@ int MUSB_ArrayAppend(MUSB_Array* list, void* data)
 
 
 /* 21ccdb08 - complete */
-int List_49a810_get_element_count(MUSB_Array* a)
+int MUSB_ArrayLength(MUSB_Array* a)
 {
    int res = 0;
    if (a != 0) res = a->num_elements;
@@ -2775,7 +2775,7 @@ int MUSB_StartEnumeration(struct MGC* a, void* b,
 
 /* 21ccc488 - todo */
 /* v3.8: func_494510 */
-int func_21ccc488(struct MGC* a)
+int MGC_HostDestroy(struct MGC* a)
 {
 #if 0
    unsigned short i;
@@ -2786,12 +2786,12 @@ int func_21ccc488(struct MGC* a)
    {
       MUSB_Device* r14 = MUSB_ListFindItem(r15, 0);
 
-      func_21ccc430(r14); 
+      MUSB_DeviceDisconnected(r14);
       
       List_49cd8c_remove_element(r15, r14);     
    }
 #else
-   FAPI_SYS_PRINT_MSG("21ccc488\n");   
+   FAPI_SYS_PRINT_MSG("MGC_HostDestroy\n");
 #endif
    
    return 1;   
@@ -2800,7 +2800,7 @@ int func_21ccc488(struct MGC* a)
 
 /* 21ccc430 - todo */
 /* v3.8: func_49b418 */
-void func_21ccc430(MUSB_Device* a)
+void MUSB_DeviceDisconnected(MUSB_Device* a)
 {
 #if 0
    MUSB_DeviceDriver* pDeviceDriver = 0;
@@ -2824,7 +2824,7 @@ void func_21ccc430(MUSB_Device* a)
       func_21ccc2b4(r14, a);
    }
 #else
-   FAPI_SYS_PRINT_MSG("21ccc430\n");   
+   FAPI_SYS_PRINT_MSG("MUSB_DeviceDisconnected\n");
 #endif
 }
 
@@ -2879,7 +2879,7 @@ int MUSB_StartControlTransaction(MUSB_Port* a,
 
 /* 21ccbd04 - complete */
 /* v3.8: func_499068 */
-int func_21ccbd04(struct MGC* a)
+int MGC_RunScheduledTransfers(struct MGC* a)
 {
 //   FAPI_SYS_PRINT_MSG("21ccbd04\n");   
    
@@ -2954,6 +2954,7 @@ void func_21ccbb20(Struct_49d2fc* a, unsigned short b, MGC_Timer* c)
    (r0->Func_680)(r0, 7);
 }
 
+#if 0
 
 /* 21ccba24 - complete */
 int MGC_HdrcIsr(MUSB_Controller* a)
@@ -2968,13 +2969,14 @@ int MGC_HdrcIsr(MUSB_Controller* a)
    unsigned short wIntrTxValue = MGC_Read16(addr2, MGC_O_HDRC_INTRTX);
    unsigned short wIntrRxValue = MGC_Read16(addr2, MGC_O_HDRC_INTRRX);
          
-   res = mgc_handle_interrupts(p, bIntrUsbValue, wIntrTxValue, wIntrRxValue);
+   res = MGC_DrcIsr(p, bIntrUsbValue, wIntrTxValue, wIntrRxValue);
    
    MGC_Write8(addr2, MGC_O_HDRC_INDEX, i);
    
    return res;   
 }
 
+#endif
 
 /* 21ccb9ec - todo */
 void MGC_HdrcDestroy(void)
@@ -3110,7 +3112,7 @@ char MGC_CompletedTransfer(MGC_Message* a, MGC_Endpoint* pEndpoint,
                   (pEndpoint->bData_19 == 0))
                {
                   //48bb64 
-                  func_21ccf72c(r1_->Data_8, pEndpoint, 0);
+                  MGC_StartNextIrp(r1_->Data_8, pEndpoint, 0);
                }
             } //if (!bTx)
             else 
@@ -3119,7 +3121,7 @@ char MGC_CompletedTransfer(MGC_Message* a, MGC_Endpoint* pEndpoint,
                if ((pEndpoint->pCurrentTxUrb == 0) && (pEndpoint->bData_18 == 0))
                {
                   //48bb80
-                  func_21ccf72c(r1_->Data_8, pEndpoint, 1);   
+                  MGC_StartNextIrp(r1_->Data_8, pEndpoint, 1);
                }
             }
             //48bc30
@@ -3163,7 +3165,7 @@ char MGC_CompletedTransfer(MGC_Message* a, MGC_Endpoint* pEndpoint,
                if ((pEndpoint->pCurrentTxUrb == 0) && (pEndpoint->bData_18 == 0)) 
                {
                   //48bb80
-                  func_21ccf72c(r1_->Data_8, pEndpoint, 1);   
+                  MGC_StartNextIrp(r1_->Data_8, pEndpoint, 1);
                }
             } //if (d != 0)
             else 
@@ -3172,7 +3174,7 @@ char MGC_CompletedTransfer(MGC_Message* a, MGC_Endpoint* pEndpoint,
                if ((pEndpoint->pCurrentRxUrb == 0) && (pEndpoint->bData_19 == 0))
                {
                   //48bb64
-                  func_21ccf72c(r1_->Data_8, pEndpoint, 0);
+                  MGC_StartNextIrp(r1_->Data_8, pEndpoint, 0);
                }
             }
             //48bc30
@@ -4778,7 +4780,7 @@ int32_t func_21cc88ac(struct MGC* a, MUSB_FunctionClient* b)
 
 /* 21cc8838 - todo */
 /* v3.8: func_491624 */
-void func_21cc8838(struct MGC* a)
+void MGC_FunctionSpeedSet(struct MGC* a)
 {
 #if 0
    MUSB_FunctionClient* r4 = a->pDevice;
@@ -4806,15 +4808,15 @@ void func_21cc8838(struct MGC* a)
       }
    }
 #else
-   FAPI_SYS_PRINT_MSG("func_21cc8838\n");
+   FAPI_SYS_PRINT_MSG("MGC_FunctionSpeedSet\n");
 #endif
 }
 
 
 /* 21cc849c - complete */
-void MGC_SetDeviceState(MUSB_BusHandle busHandle, MUSB_State state)
+void MGC_FunctionChangeState(MUSB_BusHandle busHandle, MUSB_State state)
 {
-//   FAPI_SYS_PRINT_MSG("MGC_SetDeviceState\n");
+//   FAPI_SYS_PRINT_MSG("MGC_FunctionChangeState\n");
 
    struct MGC* a = busHandle;
 
@@ -5020,7 +5022,7 @@ void func_21cc7ab4(Struct_49d2fc* a, unsigned short b, MGC_Timer* c)
             (r13->pfOtgError)(r13->pPrivateData, r13, 177);
          }
          
-         func_21cc686c(0, r14);
+         MGC_DrcChangeOtgState(0, r14);
       }
    }
 }
@@ -5046,7 +5048,7 @@ void func_21cc7a64(Struct_49d2fc* a, unsigned short b, MGC_Timer* c)
             (r1->pfOtgError)(r1->pPrivateData, r1, 177);
          }
          
-         func_21cc686c(0, r13);
+         MGC_DrcChangeOtgState(0, r13);
       }
    }
 }
@@ -5070,127 +5072,14 @@ void func_21cc7a0c(Struct_49d2fc* a, unsigned short b, MGC_Timer* c)
       
       (r13->Func_620)(r13);
       
-      func_21cc686c(17, r13);
+      MGC_DrcChangeOtgState(17, r13);
    }
 }
 
-
-/* 21cc7830 - todo */
-int mgc_handle_interrupts(Struct_49d2fc* a, 
-      char bIntrUsbValue,
-      unsigned short wIntrTxValue, 
-      unsigned short wIntrRxValue)
-{
-   unsigned short reg;
-   int bShift;
-   MGC_Message msg; 
-   
-   int res = -1;
-
-   MUSB_SystemServices* pOS = a->pOS;
-   struct MGC* r16 = a->Data_20;
-   
 #if 0
-   FAPI_SYS_PRINT_MSG("mgc_handle_interrupts: bIntrUsbValue=0x%x wIntrTxValue=0x%x wIntrRxValue=0x%x\n",
-         bIntrUsbValue, wIntrTxValue, wIntrRxValue);
-#endif
-   
-   r16->bData_60 = 0;
-   
-   if ((r16->pDmaController != 0) && 
-      (r16->pDmaController->pfDmaControllerIsr != 0))
-   {
-      if (0 != (r16->pDmaController->pfDmaControllerIsr)(
-         r16->pDmaController->pPrivateData)) 
-      {
-         res = r16->bData_60;   
-      }
-   }
-
-   /* the core can interrupt us for multiple reasons, I.E. more than an
-    * interrupt line can be asserted; service the global interrupt first.
-    * Global interrups are used to signal connect/disconnect/vbuserr
-    * etc. processed in two phase */ 
-   if (bIntrUsbValue != 0) 
-   {
-      res = mgc_hdrc_service_usb(r16, bIntrUsbValue);   
-   }
-  
-    /* handle tx/rx on endpoints; each bit of wIntrTxValue is an endpoint, 
-     * endpoint 0 first (p35 of the manual) bc is "SPECIAL" treatment; 
-     * WARNING: when operating as device you might start receving traffic 
-     * to ep0 before anything else happens so be ready for it */     
-       
-   reg = wIntrTxValue;
-   
-   if ((reg != 0) && (res < 0)) 
-   {
-      res = 0;   
-   }
-   
-   if (reg & 1) 
-   {
-      /* EP0 */ 
-      if (0 != (r16->pfDefaultEndHandler)(r16, &msg)) 
-      {
-         res++;
-         
-         (pOS->pfQueueBackgroundItem)(pOS->pPrivateData, &msg);
-      }
-   }
-
-   /* TX on endpoints 1-15 */ 
-   bShift = 1;
-   reg >>= 1;
-   while (reg != 0) 
-   {
-      if (reg & 1) 
-      {
-         //MGC_HdrcServiceTxAvail / MGC_HdrcServiceDeviceTxAvail
-         if (0 != (r16->pfServiceTxAvail)(r16, bShift, &msg)) 
-         {
-            res++;
-            msg.bEnd = bShift; 
-            
-            (pOS->pfQueueBackgroundItem)(pOS->pPrivateData, &msg);
-         }
-      }
-      reg >>= 1;
-      bShift++;   
-   }
-
-   /* RX on endpoints 1-15 */ 
-   reg = wIntrRxValue;
-   if ((reg != 0) && (res < 0)) 
-   {
-      res = 0;   
-   }
- 
-   bShift = 1;
-   reg >>= 1;
-   while (reg != 0) 
-   {
-      if (reg & 1) 
-      {
-         //MGC_HdrcServiceRxReady / MGC_HdrcServiceDeviceRxReady
-         if (0 != (r16->pfServiceRxReady)(r16, bShift, &msg)) 
-         {
-            res++;
-            msg.bEnd = bShift; 
-            
-            (pOS->pfQueueBackgroundItem)(pOS->pPrivateData, &msg);
-         }
-      }
-      reg >>= 1;
-      bShift++;   
-   }
-
-   return res;
-}
-
 
 /* 21cc7538 - todo */
-int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
+int MGC_DrcUsbIsr(struct MGC* a, char bIntrUSB)
 {      
    MGC_Message msg;
    char handled = 0;
@@ -5200,7 +5089,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
    MUSB_SystemServices* pOS = a->a->pOS;
    
    #if 0
-   FAPI_SYS_PRINT_MSG("mgc_hdrc_service_usb: 0x%x\n", bIntrUSB);
+   FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: 0x%x\n", bIntrUSB);
    #endif
    
    if (bIntrUSB != 0) 
@@ -5212,7 +5101,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
          
          #if 0
          //DBG(2, "RESUME\n");
-         FAPI_SYS_PRINT_MSG("mgc_hdrc_service_usb: RESUME\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: RESUME\n");
          #endif
          
          msg.bTag = 7;         
@@ -5226,7 +5115,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
 
          #if 0        
          //DBG(2, "SESSION_REQUEST\n");
-         FAPI_SYS_PRINT_MSG("mgc_hdrc_service_usb: SESSION_REQUEST\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: SESSION_REQUEST\n");
          #endif
          
          msg.bTag = 1;            
@@ -5239,7 +5128,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
          handled++;
          
          #if 0         
-         FAPI_SYS_PRINT_MSG("mgc_hdrc_service_usb: VBUSERROR\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: VBUSERROR\n");
          #endif
          
          msg.bTag = 8;            
@@ -5252,7 +5141,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
          handled++;
         
          #if 0      
-         FAPI_SYS_PRINT_MSG("mgc_hdrc_service_usb: SUSPEND\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: SUSPEND\n");
          #endif
                  
          msg.bTag = 6;            
@@ -5265,7 +5154,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
          
          #if 0
          //DBG(2, "RECEIVED A CONNECT (goto host mode)\n");
-         FAPI_SYS_PRINT_MSG("mgc_hdrc_service_usb: CONNECT\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: CONNECT\n");
          #endif
          
          a->bHostMode = 1;
@@ -5281,14 +5170,14 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
          //21cc7590
          
          #if 0
-         FAPI_SYS_PRINT_MSG("mgc_hdrc_service_usb: DISCONNECT\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: DISCONNECT\n");
          #endif
          
          if (a->bData_29 == 0) 
          {
             //21cc7768
-            func_21cc6694(a); 
-            MGC_SetDeviceState(a, MUSB_DEFAULT);
+            MGC_DrcFlushAll(a);
+            MGC_FunctionChangeState(a, MUSB_DEFAULT);
 
             handled++;
          
@@ -5308,7 +5197,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
          
          #if 0
          //DBG(2, "BUS RESET\n");
-         FAPI_SYS_PRINT_MSG("mgc_hdrc_service_usb: BUS RESET\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: BUS RESET\n");
          #endif
          
          (a->Func_616)(a);
@@ -5331,29 +5220,29 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
             a->wDeviceBufferOffset = 0;
             a->wDeviceTxSize = 0;
             
-            func_21cc6694(a);
-            MGC_SetDeviceState(a, MUSB_DEFAULT);
-            func_21cc8838(a);
+            MGC_DrcFlushAll(a);
+            MGC_FunctionChangeState(a, MUSB_DEFAULT);
+            MGC_FunctionSpeedSet(a);
             
 #if 1
             switch (a->bData_68) 
             {
                case 0:
-                  func_21cc6b68(a, 1);               
+                  MGC_OtgStateGetId(a, 1);
                   break;
                   
                case 20:
-                  func_21cc686c(17, a);
+                  MGC_DrcChangeOtgState(17, a);
                   break;
             }
 #else
             if (a->bData_68 == 0)
             {
-               func_21cc6b68(a, 1);
+               MGC_OtgStateGetId(a, 1);
             }
             else if (a->bData_68 == 20)
             {
-               func_21cc686c(17, a);
+               MGC_DrcChangeOtgState(17, a);
             }
 #endif
             //->21cc75a4
@@ -5365,12 +5254,12 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
          //21cc75b8
          
          #if 0
-         FAPI_SYS_PRINT_MSG("mgc_hdrc_service_usb: SOF\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: SOF\n");
          #endif
 
          (a->Func_616)(a);
          
-         bEndCount = List_49a810_get_element_count(&a->ep_list);
+         bEndCount = MUSB_ArrayLength(&a->ep_list);
          for (bEnd = 1; bEnd < bEndCount; bEnd++) 
          {
             MGC_Endpoint* r1 = MUSB_ArrayFetch(&a->ep_list, bEnd);
@@ -5396,7 +5285,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
          
          if (a->bHostMode != 0) 
          {
-            func_21ccbd04(a); //->return 1;
+            MGC_RunScheduledTransfers(a); //->return 1;
          }
       }
    }
@@ -5404,318 +5293,7 @@ int mgc_hdrc_service_usb(struct MGC* a, char bIntrUSB)
    return handled;
 }
 
-
-/* 21cc6ed0 - todo */
-void MGC_DrcBsr(MUSB_Port* a)
-{
-   MGC_Message sp8;      
-   struct MGC* r4 = a->pPrivateData;
-   Struct_49d2fc* fp = r4->a;
-   MUSB_SystemServices* pOS/*r7*/ = fp->pOS;
-   MUSB_OtgClient* r8 = r4->pOtgClient;
-   
-   while (0 != (pOS->pfDequeueBackgroundItem)(pOS->pPrivateData, &sp8))
-   {
-      #if 0
-      FAPI_SYS_PRINT_MSG("MGC_DrcBsr: r4->bData_68=%d, sp8.bTag=%d, sp8.bEnd=%d, sp8.bStatus=0x%x\n",
-         r4->bData_68, sp8.bTag, sp8.bEnd, sp8.bStatus);
-      #endif
-
-      //MUSB_Array* sp4 = &r4->ep_list;
-      //int r9 = 0;      
-      
-      switch (sp8.bTag) 
-      {         
-         case 7:
-            //21cc71e4 - Resume
-            if (r4->pDevice != 0) 
-            {
-               (r4->pDevice->pfUsbState)(
-                  r4->pDevice->pPrivateData,
-                  r4,
-                  r4->bDeviceState);   
-            }
-            //21cc7204
-            switch (r4->bData_68) 
-            {
-               case 18:
-                  //21cc7394
-                  func_21cc686c(17, r4);
-                  break;
-                  
-               case 36:
-                  //21cc7218
-                  func_21cc686c(35, r4);
-                  
-                  r4->bData_31 = 1;
-                  
-                  (r4->Func_620)(r4);
-                  
-                  (fp->pOS->pfArmTimer)(fp->pOS->pPrivateData,
-                                    0, 20, 0, 
-                                    func_21cc6144);
-                  
-                  break;
-               
-               #if 0
-               default:
-                  //->48cab8
-                  break;
-               #endif      
-            }
-            //->48cab8
-            break;
-            
-         case 1:
-            //21cc70dc - Session Request
-            if (r4->bData_68 == 0) 
-            {
-               func_21cc686c(34, r4);
-               
-               r4->bData_33 = 1;   
-               
-               (r4->Func_620)(r4);
-            }
-            //->48cab8
-            break;  
-      
-         case 8:
-            //21cc6fb4 - VBUS Error
-            if (r4->bData_61 != 0) 
-            {
-               //21cc73bc
-               r4->bData_61--;   
-               
-               func_21cc686c(0, r4);
-               func_21cc6b68(r4, 0);
-            }
-            else 
-            {
-               //21cc6fc0
-#if 1               
-               // New in HD
-               if (r8 != 0)
-               {
-                  (r8->pfOtgError)(r8->pPrivateData, r8, 176/*0xb0*/);
-               }
 #endif
-               //21cc6fdc
-               func_21cc686c(0, r4);   
-            }
-            //->48cab8
-            break;
-            
-         case 6: 
-            //21cc7124 - Suspend
-            if (r4->pDevice != 0) 
-            {
-               (r4->pDevice->pfUsbState)(
-                  r4->pDevice->pPrivateData,
-                  r4,
-                  MUSB_SUSPENDED);
-            }
-            //21cc7144
-            switch (r4->bData_68) 
-            {
-               case 17:
-                  //21cc7160
-                  r4->bSuspend = 1;
-               
-                  if (r4->bHostMode != 0) 
-                  {
-                     func_21cc686c(18, r4);   
-                  }
-                  break;
-                  
-               case 35:
-                  //21cc7488
-                  r4->bSuspend = 1;
-                  
-                  func_21cc686c(36, r4);
-                  break;
-                  
-               case 33:
-                  //21cc74b8
-                  func_21cc686c(34, r4);
-                  break;
-            }
-            //->48cab8
-            break;
-            
-         case 2:
-            //21cc7090 - Connect
-            (r4->Func_616)(r4);
-            
-            r4->Data_432 = 0;
-            
-            if ((r4->bData_68 == 18) ||
-               (r4->bData_68 == 17)) 
-            {
-               func_21cc686c(19, r4);               
-            }
-            else
-            {
-               func_21cc686c(35, r4);               
-            }
-            //->48cab8
-            break; 
-      
-         case 3:
-            //21cc7048 - Disconnect?
-            r4->bSuspend = 0;
-            
-            func_21ccc488(r4);
-            
-            switch (r4->bData_68) 
-            {
-               case 19:
-                  //21cc7378
-                  func_21ccc430(r4->Data_432);
-                  func_21cc686c(17, r4);
-                  break;
-                  
-               case 35:
-                  //21cc7420   
-                  func_21ccc430(r4->Data_432);
-                  func_21cc686c(34, r4);
-                  break;
-                  
-               case 36:
-                  //21cc743c
-                  if ((r4->bData_69 != 0) && 
-                     (Data_21f02164.dwStatus == 0))
-                  {
-                     func_21ccc430(r4->Data_432);
-                     func_21cc686c(33, r4);
-                  }
-                  else 
-                  {
-                     //21cc7474
-                     func_21cc686c(34, r4);
-                  }
-                  break;
-            }
-            //21cc7070
-            r4->Data_432 = 0;
-            //->48cab8
-            break;
-            
-         case 5:
-            //21cc7184 - Bus Reset in Host Mode
-            (r4->Func_616)(r4);
-            
-            if (r4->bSession == 0) 
-            {
-               if (r4->bData_63 != 0) 
-               {
-                  r4->bData_63--;
-                  
-                  func_21cc686c(0, r4);
-                  func_21cc6b68(r4, 0);   
-               }
-               else 
-               {
-                  //21cc72dc
-                  (r4->Func_624)(r4);
-                  (r4->Func_620)(r4);
-                  
-                  func_21cc686c(0, r4);
-               }
-            }
-            //->48cab8
-            break;
-
-         case 35: //Tx
-         case 36: //Rx
-         {
-            //21cc7008
-            MGC_Endpoint* r5 = MUSB_ArrayFetch(&r4->ep_list/*sp4*/, sp8.bEnd);
-            if (r5 != 0) 
-            {
-               #if 0
-               // From linux/usb.h
-               #define PIPE_ISOCHRONOUS     0
-               #define PIPE_INTERRUPT       1
-               #define PIPE_CONTROL         2
-               #define PIPE_BULK            3 
-               #endif
-               
-               int r0 = (sp8.bTag == 35)? 
-                  r5->bTxTrafficType: 
-                  r5->bRxTrafficType;
-                  
-               switch (r0) 
-               {
-                  case 2: // Bulk
-                  case 3: // Interrupt?
-                     //21cc7278
-                     {
-                        MUSB_Irp* pUrb = sp8.pUrb;
-                        if ((pUrb != 0) && (pUrb->pfIrpComplete != 0))
-                        {
-                           (pUrb->pfIrpComplete)(pUrb->pCompleteParam, pUrb);
-                        }
-                     }
-                     break;
-                     
-                  case 0: //Control?
-                     //21cc731c
-                     {
-                        MUSB_ControlIrp* pUrb = sp8.pUrb;
-                        if ((pUrb != 0) && (pUrb->pfIrpComplete != 0))
-                        {
-                           (pUrb->pfIrpComplete)(pUrb->pCompleteParam, pUrb);
-                        }
-                     }
-                     break;
-                     
-                  case 1: //Isochronous?
-                     //21cc7278
-                     {
-                        MUSB_IsochIrp* r1 = sp8.pUrb;
-                        if ((r1 != 0) && (r1->pfIrpComplete != 0))
-                        {
-                           (r1->pfIrpComplete)(r1->pCompleteParam, r1);
-                        }
-                     }
-                     break;   
-               }
-               //21cc72a0
-               if (sp8.bTag == 35) 
-               {
-                  //21cc734c
-                  if ((r5->pCurrentTxUrb == 0) && 
-                     (r5->bData_18 == 0)) 
-                  {
-                     //21cc7364
-                     func_21ccf72c(r4, r5, 1);   
-                  }
-               }
-               else 
-               {
-                  //21cc72a8
-                  if (((r5->pCurrentRxUrb == 0) || 
-                     (r5->bRxTrafficType == 3)) &&
-                     (r5->bData_19 == 0))
-                  {
-                     //21cc72cc
-                     func_21ccf72c(r4, r5, 0);   
-                  }
-               }
-            } //if (r5 != 0)
-            //->48cab8
-            break;
-         }
-            
-         #if 0
-         default:
-            //48CAB8
-            break;
-         #endif
-      } //switch (sp8.b)
-   } //while (0 != (pOS->pfDequeueBackgroundItem)(pOS->pPrivateData, &sp8))
-}
-
 
 /* 21cc6d64 - todo */
 /* v3.8: func_48C1C8 */
@@ -5850,7 +5428,7 @@ MUSB_BusHandle MUSB_RegisterOtgClient(MUSB_Port* pPort,
          r17->pOtgClient = pOtgClient;
          r17->bInitialized = 1;
          
-         func_21cc6b68(r17, 0);
+         MGC_OtgStateGetId(r17, 0);
          
          res = r17;
       }
@@ -5862,7 +5440,7 @@ MUSB_BusHandle MUSB_RegisterOtgClient(MUSB_Port* pPort,
 
 /* 21cc6b68 - todo */
 /* v3.8: func_498b5c */
-void func_21cc6b68(struct MGC* a, char b)
+void MGC_OtgStateGetId(struct MGC* a, char b)
 {
    a->bData_30 = 0;
    a->bData_33 = 1;
@@ -5875,17 +5453,17 @@ void func_21cc6b68(struct MGC* a, char b)
       {
          if (b != 0) 
          {
-            func_21cc686c(17, a);   
+            MGC_DrcChangeOtgState(17, a);
          }
          else 
          {
-            func_21cc686c(20, a);   
+            MGC_DrcChangeOtgState(20, a);
          }
       }
       else 
       {
          a->bData_70 = 1;   
-         func_21cc686c(34, a);   
+         MGC_DrcChangeOtgState(34, a);
       }
    }
 }
@@ -5893,9 +5471,9 @@ void func_21cc6b68(struct MGC* a, char b)
 
 static void func_48e464(char a, struct MGC* b)
 {
-   MGC_SetDeviceState(b, MUSB_POWERED);
+   MGC_FunctionChangeState(b, MUSB_POWERED);
    
-   func_21cc6694(b);
+   MGC_DrcFlushAll(b);
    
    b->address_32 = 0;
    
@@ -5925,7 +5503,7 @@ static int func_48e4bc(char a, struct MGC* b)
 
 /* 21cc686c - todo */
 /* v3.8: func_48caf4 */
-void func_21cc686c(char a, struct MGC* b)
+void MGC_DrcChangeOtgState(char a, struct MGC* b)
 {
    MUSB_SystemServices* pOS = b->a->pOS;
    
@@ -5934,7 +5512,7 @@ void func_21cc686c(char a, struct MGC* b)
    (pOS->pfCancelTimer)(pOS->pPrivateData, 0);
    
    #if 0
-   FAPI_SYS_PRINT_MSG("func_21cc686c: a=%d\n", a);
+   FAPI_SYS_PRINT_MSG("MGC_DrcChangeOtgState: a=%d\n", a);
    #endif
 
    if ((0 != func_48e4bc(a, b)) || 
@@ -6055,7 +5633,7 @@ void func_21cc686c(char a, struct MGC* b)
 /* v3.8: 48ce80 - complete */
 /* Remove all URB's (tx/rx) from all Endpoints (except Ep0) */
 /* Clear Endpoints */
-void func_21cc6694(struct MGC* a)
+void MGC_DrcFlushAll(struct MGC* a)
 {
    uint32_t i;
    uint16_t j;
@@ -6064,7 +5642,7 @@ void func_21cc6694(struct MGC* a)
    uint32_t numURBs;
    uint32_t pBase = a->a->addr2;
    
-   uint32_t numEndpoints = List_49a810_get_element_count(&a->ep_list);
+   uint32_t numEndpoints = MUSB_ArrayLength(&a->ep_list);
    
    for (i = 1; i < numEndpoints; i++) 
    {
@@ -6118,7 +5696,7 @@ int func_21cc67d8(struct MGC* a)
    (r15->pfDisableInterrupts)(r15);
    (r15->pOS->pfFlushBackgroundQueue)(r15->pOS->pPrivateData);
    
-   func_21cc6694(a);
+   MGC_DrcFlushAll(a);
    
    (r15->pfEnableInterrupts)(r15);
    (a->Func_616)(a);
@@ -7232,7 +6810,7 @@ uint32_t MUSB_StartTransfer(MUSB_Irp* a)
                if ((pEndpoint->pCurrentTxUrb == 0) &&
                      (a == MUSB_ListFindItem(&pEndpoint->tx_urb_list, 0)))
                {
-                  func_21ccf72c(r14, pEndpoint, 1);                  
+                  MGC_StartNextIrp(r14, pEndpoint, 1);
                }                   
             }
             else
@@ -7240,7 +6818,7 @@ uint32_t MUSB_StartTransfer(MUSB_Irp* a)
                if ((pEndpoint->pCurrentRxUrb == 0) &&
                      (a == MUSB_ListFindItem(&pEndpoint->rx_urb_list, 0)))
                {
-                  func_21ccf72c(r14, pEndpoint, 0);
+                  MGC_StartNextIrp(r14, pEndpoint, 0);
                }
             } 
          } //if ((bTx != 0)? pEndpoint->pCurrentTxUrb: pEndpoint->Data_48)

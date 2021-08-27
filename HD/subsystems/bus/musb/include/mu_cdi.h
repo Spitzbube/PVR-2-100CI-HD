@@ -72,7 +72,7 @@ typedef struct
 
 typedef char* (*MUSB_pfSystemToBusAddress)(void*, char*); //:t(38,22)=(38,23)=*(38,24)=f(6,2)
 typedef int (*MUSB_pfQueueBackgroundItem)(void*, void*); //:t(38,25)=(38,26)=*(38,27)=f(16,4)
-typedef int (*MUSB_pfDequeueBackgroundItem)(void*, void*); //:t(38,28)=(38,29)=*(38,30)=f(16,4)
+typedef uint8_t (*MUSB_pfDequeueBackgroundItem)(void*, void*); //:t(38,28)=(38,29)=*(38,30)=f(16,4)
 typedef void (*MUSB_pfFlushBackgroundQueue)(void*); //:t(38,31)=(38,3)
 typedef int (*MUSB_pfArmTimer)(void*, int, int, int,
       void (*)(struct Struct_49d2fc_t* a,

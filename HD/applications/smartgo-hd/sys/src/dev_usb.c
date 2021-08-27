@@ -153,6 +153,7 @@ int32_t dev_usb_init(void)
       usbDat->connectFlag = 0;
       usbDat->mscLocked = 0;
 
+#if 0
       /* Setup USB function mode if HDD device is available */
       if (0 != SYS_DeviceGetStatus(0, &hddStatus))
       {
@@ -160,6 +161,9 @@ int32_t dev_usb_init(void)
       }
 
       if (hddStatus.Data_0 != 0)
+#else
+          USB_Wakeup();
+#endif
       {
          errorCode = dev_usb_init_msc_function_client(usbDat);
       }

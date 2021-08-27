@@ -18,6 +18,20 @@ extern void MGC_Write8(uint8_t* baseAddr, uint16_t offset, uint8_t);
 extern MUSB_Array* MUSB_ArrayInit(MUSB_Array* pArray,
    uint16_t wItemSize, uint16_t wStaticItemCount, void* pStaticBuffer);
 extern uint8_t MUSB_ArrayAppend(MUSB_Array* pArray, void* pItem);
+extern void MGC_DrcChangeOtgState(char, MGC_Port*);
+extern void func_21cc6144(Struct_49d2fc* a, unsigned short b, MGC_Timer* c);
+extern void MGC_OtgStateGetId(MGC_Port*, char);
+extern int MGC_HostDestroy(MGC_Port*);
+extern void MUSB_DeviceDisconnected(MUSB_Device*);
+extern int MGC_StartNextIrp(MGC_Port*, MGC_EndpointResource*, int);
+extern uint8_t MGC_DrcUsbIsr(MGC_Port*, uint8_t);
+extern void MGC_DrcFlushAll(MGC_Port*);
+extern void MGC_FunctionChangeState(MGC_Port*, MUSB_State);
+extern void MGC_FunctionSpeedSet(MGC_Port*);
+extern void MGC_RunScheduledTransfers(MGC_Port*);
+
+
+extern MUSB_ControlIrp Data_21f02164; //21f02164 v3.8: 601770 -212
 
 
 /* 21cc8000 - complete */
@@ -108,6 +122,671 @@ uint8_t MGC_DrcInit(MGC_Port* pPort/*fp128*/) /*120*/
    MGC_Write8(pBase, 14, 0);
 
    return bOk;
+}
+
+
+/* 21cc7830 - complete */
+int MGC_DrcIsr(MGC_Controller* pController/*fp48*/, uint8_t bIntrUsbValue/*fp52*/, /*200*/
+        uint16_t wIntrTxValue/*fp56*/, uint16_t wIntrRxValue/*fp60*/) /*201*/
+{
+    MGC_BsrItem qItem; /*fp44*/ /*203*/
+    uint32_t dwRegVal; /*fp36*/
+    uint8_t bQueue; /*fp29*/
+    unsigned int iShift; /*fp28*/
+    int iResult = -1; /*fp24*/
+    MUSB_SystemServices* pServices = pController->pSystemServices; /*fp20*/
+    MGC_Port* pPort = pController->pPort; /*fp16*/ /*209*/
+
+#if 0
+   FAPI_SYS_PRINT_MSG("MGC_DrcIsr: bIntrUsbValue=0x%x wIntrTxValue=0x%x wIntrRxValue=0x%x\n",
+         bIntrUsbValue, wIntrTxValue, wIntrRxValue);
+#endif
+
+   pPort->bDmaCompleted = 0;
+
+   if ((pPort->pDmaController != 0) &&
+      (pPort->pDmaController->pfDmaControllerIsr != 0))
+   {
+      if (0 != (pPort->pDmaController->pfDmaControllerIsr)(
+         pPort->pDmaController->pPrivateData))
+      {
+          iResult = pPort->bDmaCompleted;
+      }
+   }
+
+   /* the core can interrupt us for multiple reasons, I.E. more than an
+    * interrupt line can be asserted; service the global interrupt first.
+    * Global interrups are used to signal connect/disconnect/vbuserr
+    * etc. processed in two phase */
+   if (bIntrUsbValue != 0)
+   {
+       iResult = MGC_DrcUsbIsr(pPort, bIntrUsbValue);
+   }
+   //484
+
+    /* handle tx/rx on endpoints; each bit of wIntrTxValue is an endpoint,
+     * endpoint 0 first (p35 of the manual) bc is "SPECIAL" treatment;
+     * WARNING: when operating as device you might start receving traffic
+     * to ep0 before anything else happens so be ready for it */
+
+   dwRegVal = wIntrTxValue;
+
+   if ((dwRegVal != 0) && (iResult < 0))
+   {
+       iResult = 0;
+   }
+   //574
+   if (dwRegVal & 1)
+   {
+      /* EP0 */
+       bQueue = (pPort->pfServiceDefaultEnd)(pPort, &qItem);
+      if (bQueue != 0)
+      {
+          iResult++;
+
+         (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+      }
+   }
+   //5e0
+   /* TX on endpoints 1-15 */
+   iShift = 1;
+   dwRegVal >>= 1;
+   while (dwRegVal != 0)
+   {
+       //5f8
+      if (dwRegVal & 1)
+      {
+         //MGC_HdrcServiceTxAvail / MGC_HdrcServiceDeviceTxAvail
+          bQueue = (pPort->pfServiceTransmitAvail)(pPort, iShift, &qItem);
+         if (bQueue != 0)
+         {
+            iResult++;
+            qItem.bLocalEnd = iShift;
+
+            (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+         }
+      }
+      //678
+      dwRegVal >>= 1;
+      iShift++;
+   }
+   //69c
+   /* RX on endpoints 1-15 */
+   dwRegVal = wIntrRxValue;
+   if ((dwRegVal != 0) && (iResult < 0))
+   {
+       iResult = 0;
+   }
+   //6c4
+   iShift = 1;
+   dwRegVal >>= 1;
+   while (dwRegVal != 0)
+   {
+       //6dc
+      if (dwRegVal & 1)
+      {
+         //MGC_HdrcServiceRxReady / MGC_HdrcServiceDeviceRxReady
+          bQueue = (pPort->pfServiceReceiveReady)(pPort, iShift, &qItem);
+         if (bQueue != 0)
+         {
+             iResult++;
+             qItem.bLocalEnd = iShift;
+
+            (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+         }
+      }
+      //75c
+      dwRegVal >>= 1;
+      iShift++;
+   }
+   //780
+   return iResult;
+}
+
+
+/* 21cc7538 - complete */
+uint8_t MGC_DrcUsbIsr(MGC_Port* pPort/*fp56*/, uint8_t bIntrUSB/*fp60*/) /*1187*/
+{
+    MGC_BsrItem qItem; /*fp52*/
+    uint32_t dwEndCount; /*fp44*/
+    uint32_t dwEndIndex; /*fp40*/
+    MGC_EndpointResource* pEnd; /*fp36*/
+    MUSB_IsochIrp* pIsochIrp; /*fp32*/ /*1193*/
+    uint8_t bResult = 0; /*fp25*/
+    MUSB_SystemServices* pServices = pPort->pController->pSystemServices; /*fp24*/
+#if 0
+    uint8_t wasHost; /*1250*/
+#endif
+
+   #if 0
+   FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: 0x%x\n", bIntrUSB);
+   #endif
+
+   if (bIntrUSB != 0)
+   {
+      if (bIntrUSB & MGC_M_INTR_RESUME)
+      {
+         //21cc771c
+          bResult++;
+
+         #if 0
+         //DBG(2, "RESUME\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: RESUME\n");
+         #endif
+
+         qItem.bCause = 7;
+         (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+      }
+      //27d4
+      if (bIntrUSB & MGC_M_INTR_SESSREQ)
+      {
+         //21cc7654
+         bResult++;
+
+         #if 0
+         //DBG(2, "SESSION_REQUEST\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: SESSION_REQUEST\n");
+         #endif
+
+         qItem.bCause = 1;
+         (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+      }
+      //2818
+      if (bIntrUSB & MGC_M_INTR_VBUSERROR)
+      {
+         //21cc7744
+         bResult++;
+
+         #if 0
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: VBUSERROR\n");
+         #endif
+
+         qItem.bCause = 8;
+         (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+      }
+      //285c
+      if (bIntrUSB & MGC_M_INTR_SUSPEND)
+      {
+         //21cc76f0
+         bResult++;
+
+         #if 0
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: SUSPEND\n");
+         #endif
+
+         qItem.bCause = 6;
+         (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+      }
+      //28a4
+      if (bIntrUSB & MGC_M_INTR_CONNECT)
+      {
+         //21cc76bc
+
+         #if 0
+         //DBG(2, "RECEIVED A CONNECT (goto host mode)\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: CONNECT\n");
+         #endif
+
+         pPort->bIsHost = 1;
+
+         bResult++;
+
+         qItem.bCause = 2;
+         (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+      }
+      //28f4
+      if (bIntrUSB & MGC_M_INTR_DISCONNECT)
+      {
+         //21cc7590
+
+         #if 0
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: DISCONNECT\n");
+         #endif
+
+         if (pPort->bWantReset == 0)
+         {
+            //21cc7768
+            MGC_DrcFlushAll(pPort);
+            MGC_FunctionChangeState(pPort, MUSB_DEFAULT);
+
+            bResult++;
+
+            qItem.bCause = 3;
+            (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+         }
+      }
+      //295c
+       /* saved one bit: bus reset and babble share the same bit;
+        * If I am host is a babble! i must be the only one allowed
+        * to reset the bus; when in otg mode it means that I have
+        * to switch to device
+        */
+      if (bIntrUSB & MGC_M_INTR_RESET)
+      {
+         //21cc7680
+
+         #if 0
+         //DBG(2, "BUS RESET\n");
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: BUS RESET\n");
+         #endif
+
+         (pPort->pfReadBusState)(pPort);
+
+         if (pPort->bIsHost != 0)
+         {
+            //21cc7698
+            bResult++;
+
+            qItem.bCause = 5;
+            (pServices->pfQueueBackgroundItem)(pServices->pPrivateData, &qItem);
+            //->21cc75a4
+         }
+         else
+         {
+            //21cc77b8 / 29d0
+#if 0
+             if ()
+             {
+
+             }
+             else
+             {
+             //2a38
+#endif
+            pPort->bWantSession = pPort->bIsSession;
+            pPort->bWantHost = 0;
+            pPort->bFuncAddr = 0;
+            pPort->wSetupDataIndex = 0;
+            pPort->wSetupDataSize = 0;
+
+            MGC_DrcFlushAll(pPort);
+            MGC_FunctionChangeState(pPort, MUSB_DEFAULT);
+            MGC_FunctionSpeedSet(pPort);
+
+            switch (pPort->bOtgState)
+            {
+               case 0:
+                  MGC_OtgStateGetId(pPort, 1);
+                  break;
+
+               case 20:
+                  MGC_DrcChangeOtgState(17, pPort);
+                  break;
+            }
+            //->21cc75a4
+         }
+      }
+      //2ae0
+      if (bIntrUSB & MGC_M_INTR_SOF)
+      {
+         //21cc75b8
+
+         #if 0
+         FAPI_SYS_PRINT_MSG("MGC_DrcUsbIsr: SOF\n");
+         #endif
+
+         (pPort->pfReadBusState)(pPort);
+
+         dwEndCount = MUSB_ArrayLength(&pPort->LocalEnds);
+         for (dwEndIndex = 1; dwEndIndex < dwEndCount; dwEndIndex++)
+         {
+             //2b24
+             pEnd = MUSB_ArrayFetch(&pPort->LocalEnds, dwEndIndex);
+
+            // Isochronous transfers?
+
+            if ((pEnd != NULL) &&
+               (pEnd->bTrafficType == 1) &&
+               (pEnd->dwWaitFrameCount != 0))
+            {
+                pIsochIrp = (void*) pEnd->pTxIrp;
+
+                pEnd->dwWaitFrameCount--;
+               if (pEnd->dwWaitFrameCount == 0)
+               {
+                  (pPort->pfProgramStartTransmit)(pPort,
+                                pEnd,
+                                pIsochIrp->pBuffer,
+                                pIsochIrp->adwLength[0],
+                                pIsochIrp);
+               }
+            }
+            //2bd0
+         }
+         //2bec
+         if (pPort->bIsHost != 0)
+         {
+            MGC_RunScheduledTransfers(pPort); //->return 1;
+         }
+      }
+   }
+   //2c04
+   return bResult;
+}
+
+
+/* 21cc6ed0 - complete */
+void MGC_DrcBsr(void* pParam/*fp108*/) /*1338*/
+{
+    MGC_BsrItem item; /*fp64*/ /*1344*/
+    uint8_t bOk; /*fp54*/
+    uint8_t bTrafficType; /*fp53*/
+    MGC_EndpointResource* pLocalEnd; /*fp52*/
+    MUSB_Irp* pIrp; /*fp48*/
+    MUSB_ControlIrp* pControlIrp; /*fp44*/
+    MUSB_IsochIrp* pIsochIrp; /*fp40*/
+    MUSB_Port* pIfacePort = pParam; /*fp36*/
+    MGC_Port* pPort = pIfacePort->pPrivateData; /*fp32*/ /*1352*/
+    MGC_Controller* pController = pPort->pController; /*fp28*/
+    MUSB_SystemServices* pServices = pController->pSystemServices; /*fp24*/
+    MUSB_OtgClient* pOtgClient = pPort->pOtgClient; /*fp20*/
+#if 0
+    uint8_t cnt;
+    uint8_t ii; /*1357*/
+    FAPI_DMA_RequestT* dma_request_arr[1]; //Size?
+#endif
+
+    bOk = (pServices->pfDequeueBackgroundItem)(pServices->pPrivateData, &item);
+
+   while (bOk)
+   {
+
+      #if 0
+      FAPI_SYS_PRINT_MSG("MGC_DrcBsr: pPort->bOtgState=%d, item.bCause=%d, item.bLocalEnd=%d\n",
+         pPort->bOtgState, item.bCause, item.bLocalEnd);
+      #endif
+
+      switch (item.bCause)
+      {
+         case 7:
+            //21cc71e4 / 2d38 - Resume
+             if (pPort->pFunctionClient != NULL)
+             {
+                (pPort->pFunctionClient->pfUsbState)(
+                   pPort->pFunctionClient->pPrivateData,
+                   pPort,
+                   pPort->bUsbState);
+             }
+            //21cc7204
+            switch (pPort->bOtgState)
+            {
+               case 18:
+                  //21cc7394
+                  MGC_DrcChangeOtgState(17, pPort);
+                  break;
+
+               case 36:
+                  //21cc7218
+                  MGC_DrcChangeOtgState(35, pPort);
+
+                  pPort->bWantResume = 1;
+
+                  (pPort->pfProgramBusState)(pPort);
+
+                  (pController->pSystemServices->pfArmTimer)(pController->pSystemServices->pPrivateData,
+                                    0, 20, 0,
+                                    func_21cc6144);
+                  break;
+
+               #if 0
+               default:
+                  //->48cab8
+                  break;
+               #endif
+            }
+            //->48cab8
+            break;
+
+         case 1:
+            //21cc70dc / 2e44 - Session Request
+            if (pPort->bOtgState == 0)
+            {
+               MGC_DrcChangeOtgState(34, pPort);
+
+               pPort->bWantSession = 1;
+
+               (pPort->pfProgramBusState)(pPort);
+            }
+            //->48cab8
+            break;
+
+         case 8:
+            //21cc6fb4 / 2eb4 - VBUS Error
+            if (pPort->bVbusErrorRetries != 0)
+            {
+               //21cc73bc
+                pPort->bVbusErrorRetries--;
+
+               MGC_DrcChangeOtgState(0, pPort);
+               MGC_OtgStateGetId(pPort, 0);
+            }
+            else
+            {
+               //21cc6fc0
+#if 1
+               // New in HD
+               if (pOtgClient != NULL)
+               {
+                  (pOtgClient->pfOtgError)(pOtgClient->pPrivateData, pOtgClient, 176/*0xb0*/);
+               }
+#endif
+               //21cc6fdc
+               MGC_DrcChangeOtgState(0, pPort);
+            }
+            //->48cab8
+            break;
+
+         case 6:
+            //21cc7124 / 2f9c - Suspend
+            if (pPort->pFunctionClient != 0)
+            {
+               (pPort->pFunctionClient->pfUsbState)(
+                  pPort->pFunctionClient->pPrivateData,
+                  pPort,
+                  MUSB_SUSPENDED);
+            }
+            //21cc7144
+            switch (pPort->bOtgState)
+            {
+               case 17:
+                  //21cc7160
+                  pPort->bIsSuspend = 1;
+
+                  if (pPort->bIsHost != 0)
+                  {
+                     MGC_DrcChangeOtgState(18, pPort);
+                  }
+                  break;
+
+               case 35:
+                  //21cc7488
+                  pPort->bIsSuspend = 1;
+
+                  MGC_DrcChangeOtgState(36, pPort);
+                  break;
+
+               case 33:
+                  //21cc74b8
+                  MGC_DrcChangeOtgState(34, pPort);
+                  break;
+            }
+            //->48cab8
+            break;
+
+         case 2:
+            //21cc7090 / 3094 - Connect
+            (pPort->pfReadBusState)(pPort);
+
+            pPort->pRootDevice = NULL;
+
+            if ((pPort->bOtgState == 18) ||
+               (pPort->bOtgState == 17))
+            {
+               MGC_DrcChangeOtgState(19, pPort);
+            }
+            else
+            {
+               MGC_DrcChangeOtgState(35, pPort);
+            }
+            //->48cab8
+            break;
+
+         case 3:
+            //21cc7048 / 3124 - Disconnect?
+            pPort->bIsSuspend = 0;
+
+            MGC_HostDestroy(pPort);
+
+            switch (pPort->bOtgState)
+            {
+                case 35:
+                   //21cc7420
+                   MUSB_DeviceDisconnected(pPort->pRootDevice);
+                   MGC_DrcChangeOtgState(34, pPort);
+                   break;
+
+                case 36:
+                   //21cc743c
+                   if ((pPort->bRelinquish != 0) &&
+                      (Data_21f02164.dwStatus == 0))
+                   {
+                      MUSB_DeviceDisconnected(pPort->pRootDevice);
+                      MGC_DrcChangeOtgState(33, pPort);
+                   }
+                   else
+                   {
+                      //21cc7474
+                      MGC_DrcChangeOtgState(34, pPort);
+                   }
+                   break;
+
+               case 19:
+                  //21cc7378
+                  MUSB_DeviceDisconnected(pPort->pRootDevice);
+                  MGC_DrcChangeOtgState(17, pPort);
+                  break;
+            }
+            //21cc7070
+            pPort->pRootDevice = NULL;
+            //->48cab8
+            break;
+
+         case 5:
+            //21cc7184 / 3318 - Bus Reset in Host Mode
+            (pPort->pfReadBusState)(pPort);
+
+            if (pPort->bIsSession == 0)
+            {
+               if (pPort->bBabbleRetries != 0)
+               {
+                   pPort->bBabbleRetries--;
+
+                  MGC_DrcChangeOtgState(0, pPort);
+                  MGC_OtgStateGetId(pPort, 0);
+               }
+               else
+               {
+                  //21cc72dc
+                  (pPort->pfResetPort)(pPort);
+                  (pPort->pfProgramBusState)(pPort);
+
+                  MGC_DrcChangeOtgState(0, pPort);
+               }
+            }
+            //->48cab8
+            break;
+
+         case 35: //Tx
+         case 36: //Rx
+         {
+            //21cc7008 / 3448
+             pLocalEnd = MUSB_ArrayFetch(&pPort->LocalEnds, item.bLocalEnd);
+            if (pLocalEnd != 0)
+            {
+               #if 0
+               // From linux/usb.h
+               #define PIPE_ISOCHRONOUS     0
+               #define PIPE_INTERRUPT       1
+               #define PIPE_CONTROL         2
+               #define PIPE_BULK            3
+               #endif
+
+                bTrafficType = (item.bCause == 35)?
+                  pLocalEnd->bTrafficType:
+                  pLocalEnd->bRxTrafficType;
+
+               switch (bTrafficType)
+               {
+                  case 2: // Bulk
+                  case 3: // Interrupt?
+                     //21cc7278 / 34c8
+                     {
+                         pIrp = item.pData;
+                        if ((pIrp != 0) && (pIrp->pfIrpComplete != 0))
+                        {
+                           (pIrp->pfIrpComplete)(pIrp->pCompleteParam, pIrp);
+                        }
+                     }
+                     break;
+
+                  case 0: //Control?
+                     //21cc731c / 350c
+                     {
+                         pControlIrp = item.pData;
+                        if ((pControlIrp != 0) && (pControlIrp->pfIrpComplete != 0))
+                        {
+                           (pControlIrp->pfIrpComplete)(pControlIrp->pCompleteParam, pControlIrp);
+                        }
+                     }
+                     break;
+
+                  case 1: //Isochronous?
+                     //21cc7278 / 3550
+                     {
+                         pIsochIrp = item.pData;
+                        if ((pIsochIrp != 0) && (pIsochIrp->pfIrpComplete != 0))
+                        {
+                           (pIsochIrp->pfIrpComplete)(pIsochIrp->pCompleteParam, pIsochIrp);
+                        }
+                     }
+                     break;
+               }
+               //21cc72a0 / 3590
+               if (item.bCause == 35)
+               {
+                  //21cc734c
+                  if ((pLocalEnd->pTxIrp == 0) &&
+                     (pLocalEnd->bStopTx == 0))
+                  {
+                     //21cc7364
+                     MGC_StartNextIrp(pPort, pLocalEnd, 1);
+                  }
+               }
+               else
+               {
+                  //21cc72a8 / 35d0
+                  if (((pLocalEnd->pRxIrp == 0) ||
+                     (pLocalEnd->bRxTrafficType == 3)) &&
+                     (pLocalEnd->bIsRxHalted == 0))
+                  {
+                     //21cc72cc
+                     MGC_StartNextIrp(pPort, pLocalEnd, 0);
+                  }
+               }
+            } //if (pLocalEnd != 0)
+            //->48cab8
+            break;
+         }
+
+         #if 0
+         default:
+            //48CAB8
+            break;
+         #endif
+      } //switch (sp8.b)
+
+      bOk = (pServices->pfDequeueBackgroundItem)(pServices->pPrivateData, &item);
+   } //while (bOk)
 }
 
 

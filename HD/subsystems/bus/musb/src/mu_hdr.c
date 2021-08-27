@@ -64,6 +64,7 @@ extern uint16_t MGC_Read16(uint8_t* baseAddr, uint16_t offset);
 extern void MGC_Write8(uint8_t* baseAddr, uint16_t offset, uint8_t);
 extern void MGC_Write16(uint8_t* baseAddr, uint16_t offset, uint16_t);
 extern uint8_t MGC_DrcInit(MGC_Port* pPort);
+extern int MGC_DrcIsr(MGC_Controller*, uint8_t, uint16_t, uint16_t);
 
 
 /* 21ccba9c - complete */
@@ -106,6 +107,32 @@ uint8_t MGC_HdrcInit(MGC_Port* pPort)
    }
 
    return MGC_DrcInit(pPort);
+}
+
+
+/* 21ccba24 - complete */
+int MGC_HdrcIsr(/*MUSB_Controller* a*/void* pParam/*fp44*/) /*312*/
+{
+   int result; /*fp40*/
+   uint8_t bIntrUsbValue; /*fp33*/
+   uint16_t wIntrTxValue; /*fp32*/
+   uint16_t wIntrRxValue; /*fp30*/
+   MUSB_Controller* pController = pParam; /*fp28*/
+   MGC_Controller* pControllerImpl = pController->pPrivateData; /*fp24*/
+   uint8_t* pBase = pControllerImpl->pControllerAddressIst; /*fp20*/
+   uint8_t bIndex; /*fp13*/
+
+   bIndex = MGC_Read8(pBase, MGC_O_HDRC_INDEX);
+
+   bIntrUsbValue = MGC_Read8(pBase, MGC_O_HDRC_INTRUSB);
+   wIntrTxValue = MGC_Read16(pBase, MGC_O_HDRC_INTRTX);
+   wIntrRxValue = MGC_Read16(pBase, MGC_O_HDRC_INTRRX);
+
+   result = MGC_DrcIsr(pControllerImpl, bIntrUsbValue, wIntrTxValue, wIntrRxValue);
+
+   MGC_Write8(pBase, MGC_O_HDRC_INDEX, bIndex);
+
+   return result;
 }
 
 

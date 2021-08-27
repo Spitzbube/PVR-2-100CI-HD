@@ -30,6 +30,16 @@ typedef struct
    char bEnd; //5
    char bStatus; //6   
 } MGC_Message;
+typedef struct
+{
+    void* pData; //0
+    uint8_t bCause; //4
+    uint8_t bLocalEnd; //5
+    uint8_t bStatus; //6
+    //8
+} MGC_BsrItem;
+
+
 
 
 
@@ -341,13 +351,6 @@ typedef struct
 
 typedef struct
 {
-    int dummy;
-    //TODO
-} MGC_BsrItem;
-
-
-typedef struct
-{
     uint16_t wCoreRegistersExtent; //0
     MUSB_pfNewDmaController pfNewDmaController; //4
     MUSB_pfDestroyDmaController pfDestroyDmaController; //8 /*Line 316*/
@@ -478,11 +481,11 @@ typedef struct _MGC_Port
     void* pPrivateData; //8
     MUSB_Array LocalEnds; //12
     uint8_t bWantHighSpeed; //28
-    uint8_t bWantReset; //29
+    uint8_t bWantReset; //29 / debug: 37
     uint8_t bWantSuspend; //30
     uint8_t bWantResume; //31
     uint8_t bFuncAddr; //32
-    uint8_t bWantSession; //33
+    uint8_t bWantSession; //33 / debug: 41
     uint8_t bWantHost; //34
     uint8_t bWantTestMode; //35
     uint8_t bTestMode; //36
@@ -497,59 +500,59 @@ typedef struct _MGC_Port
     uint8_t bIsHighSpeed; //48
     uint8_t bIsLowSpeed; //49
     uint8_t bIsReset; //50
-    uint8_t bIsSuspend; //51
+    uint8_t bIsSuspend; //51 / debug: 59
     uint8_t bIsResume; //52
-    uint8_t bIsSession; //53
-    uint8_t bIsHost; //54
+    uint8_t bIsSession; //53 / debug: 61
+    uint8_t bIsHost; //54 / debug: 62
     uint8_t bConnectorId; //55
     uint8_t bBusVoltage; //56
     uint8_t bEnd0Status; //57
     uint16_t wEndMask; //58 / debug: 66
-    uint8_t bDmaCompleted;
-    uint8_t bVbusErrorRetries;
+    uint8_t bDmaCompleted; //60 / debug: 68
+    uint8_t bVbusErrorRetries; // debug: 69
     uint8_t bHasDisablePing; //62
-    uint8_t bBabbleRetries;
+    uint8_t bBabbleRetries; //63 / debug: 71
     uint8_t bHasRqPktCount; //64
     uint8_t bPad1;
     uint8_t bPad2;
     uint8_t bPad3;
     uint8_t bOtgState; //68 / debug: 76
-    uint8_t bRelinquish;
+    uint8_t bRelinquish; //69 / debug: 77
     uint8_t bIsHnpSupported;
     uint8_t bIsHnpAllowed;
-    MUSB_OtgClient* pOtgClient; //72 /*922*/
+    MUSB_OtgClient* pOtgClient; //72 / debug: 80 /*922*/
     MGC_EnumerationData EnumerationData; // /*926*/
     MUSB_HostClient* pHostClient; //420
     int/*TODO*/ pfDriverTimerExpired;
     int/*TODO*/ pDriverTimerData;
-    MUSB_Device* pRootDevice;
+    MUSB_Device* pRootDevice; //432 / debug: 440
     MUSB_LinkedList ConnectedDeviceList; //List_524 //436 +12 /*931*/
     MGC_Schedule Schedule; //Data_536; //448 /*932*/
     uint16_t wHostMaxPower; // /*933*/
     uint16_t wHostUsedPower;
-    int/*TODO*/ pFunctionClient;
+    MUSB_FunctionClient* pFunctionClient; //472 / debug: 480
     int/*TODO*/ apConfigDescriptors[1]; //476
     int/*TODO*/ pCurrentConfig;
     int/*TODO*/ apPipe[1];
-    uint8_t bUsbState; //488
+    uint8_t bUsbState; //488 / debug: 496
     uint8_t bMaxFunctionEnds;
     uint8_t bCanWakeup;
     uint8_t bSetAddress;
     uint8_t bConfigValue;
     uint8_t bParse;
-    uint16_t wSetupDataIndex; //494 /*Line 948*/
+    uint16_t wSetupDataIndex; //494 / debug: 502 /*Line 948*/
     uint16_t wSetupRxIndex;
-    uint16_t wSetupDataSize;
+    uint16_t wSetupDataSize; // debug: 506
     int/*TODO*/ pSetupData; //500
     int/*TODO*/ dwSequenceNumber;
     char/*TODO*/ abIfaceOffsets[16]; //508
     MUSB_DmaController* pDmaController; //524 /*Line 969*/
-    MGC_pfReadBusState pfReadBusState; //528 Func_616 /*Line 972*/
-    MGC_pfProgramBusState pfProgramBusState; //Func_620) //532
-    MGC_pfResetPort pfResetPort;
+    MGC_pfReadBusState pfReadBusState; //528 Func_616 / debug: 536 /*Line 972*/
+    MGC_pfProgramBusState pfProgramBusState; //Func_620) //532 / debug: 540
+    MGC_pfResetPort pfResetPort; //Func_624 / debug: 544
     MGC_pfBindEndpoint pfBindEndpoint;
     MGC_pfProgramStartReceive pfProgramStartReceive; //544
-    MGC_pfProgramStartTransmit pfProgramStartTransmit;
+    MGC_pfProgramStartTransmit pfProgramStartTransmit; // debug: 556
     MGC_pfProgramFlushEndpoint pfProgramFlushEndpoint; //552
     MGC_pfProgramHaltEndpoint pfProgramHaltEndpoint; //Func_644
     MGC_pfDefaultEndResponse pfDefaultEndResponse;
